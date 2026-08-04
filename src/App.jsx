@@ -3,6 +3,7 @@ import { supabase } from "./supabaseClient";
 import Auth from "./Auth.jsx";
 import LavaJaApp from "./LavaJaApp.jsx";
 import InviteAccept from "./InviteAccept.jsx";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = carregando, null = deslogado
@@ -18,25 +19,43 @@ export default function App() {
 
   if (inviteToken) {
     return (
-      <InviteAccept
-        token={inviteToken}
-        onDone={() => {
-          const url = new URL(window.location.href);
-          url.searchParams.delete("convite");
-          window.history.replaceState({}, "", url.toString());
-          setInviteToken(null);
-        }}
-      />
+      <>
+        <InviteAccept
+          token={inviteToken}
+          onDone={() => {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("convite");
+            window.history.replaceState({}, "", url.toString());
+            setInviteToken(null);
+          }}
+        />
+        <SpeedInsights />
+      </>
     );
   }
 
   if (session === undefined) {
-    return <div className="min-h-screen flex items-center justify-center text-stone-400">Carregando...</div>;
+    return (
+      <>
+        <div className="min-h-screen flex items-center justify-center text-stone-400">Carregando...</div>
+        <SpeedInsights />
+      </>
+    );
   }
 
   if (!session) {
-    return <Auth onAuthed={() => {}} />;
+    return (
+      <>
+        <Auth onAuthed={() => {}} />
+        <SpeedInsights />
+      </>
+    );
   }
 
-  return <LavaJaApp onLogout={() => supabase.auth.signOut()} />;
+  return (
+    <>
+      <LavaJaApp onLogout={() => supabase.auth.signOut()} />
+      <SpeedInsights />
+    </>
+  );
 }
