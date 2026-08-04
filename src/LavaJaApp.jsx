@@ -32,9 +32,18 @@ export default function LavaJaApp({ onLogout }) {
     setData(fresh);
   }, [companyId]);
 
+  const loadCompanyWithRetry = async (retries = 8, delayMs = 600) => {
+    for (let i = 0; i < retries; i++) {
+      const cid = await db.getMyCompanyId();
+      if (cid) return cid;
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+    return null;
+  };
+
   useEffect(() => {
     (async () => {
-      const cid = await db.getMyCompanyId();
+      const cid = await loadCompanyWithRetry();
       setCompanyId(cid);
       if (cid) {
         const { data: company } = await supabase.from("companies").select("name").eq("id", cid).single();
@@ -54,6 +63,19 @@ export default function LavaJaApp({ onLogout }) {
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center text-stone-400">Carregando...</div>;
+  }
+
+  if (!companyId) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 text-center px-4">
+        <p className="text-stone-700 font-medium">Não conseguimos encontrar sua empresa ainda.</p>
+        <p className="text-sm text-stone-500 max-w-sm">Isso pode acontecer logo após criar a conta. Atualize a página em alguns segundos.</p>
+        <button onClick={() => window.location.reload()} className="mt-2 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2.5 rounded-xl">
+          Atualizar página
+        </button>
+        <button onClick={onLogout} className="text-xs text-stone-400 hover:text-stone-600 mt-1">Sair</button>
+      </div>
+    );
   }
 
   const NAV = [
