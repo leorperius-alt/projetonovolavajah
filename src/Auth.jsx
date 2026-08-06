@@ -58,7 +58,7 @@ export default function Auth({ onAuthed }) {
     <div className="min-h-screen bg-stone-50 flex items-center justify-center p-4" style={{ fontFamily: "'Inter', sans-serif" }}>
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center mb-8">
-          <img src="/logo.png" alt="LavaJá" className="w-28 h-28 rounded-2xl shadow-sm" />
+          <img src="/logo.png" alt="LavaJá" className="w-44 h-44 rounded-2xl shadow-sm" />
         </div>
 
         <div className="bg-white border border-stone-200 rounded-2xl p-6">
