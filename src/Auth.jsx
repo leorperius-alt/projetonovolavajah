@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { Droplets } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
 export default function Auth({ onAuthed }) {
@@ -58,11 +57,8 @@ export default function Auth({ onAuthed }) {
   return (
     <div className="min-h-screen bg-stone-50 flex items-center justify-center p-4" style={{ fontFamily: "'Inter', sans-serif" }}>
       <div className="w-full max-w-sm">
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <Droplets size={28} className="text-orange-500" />
-          <span className="font-semibold text-xl" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-            LavaJá
-          </span>
+        <div className="flex items-center justify-center mb-8">
+          <img src="/logo.png" alt="LavaJá" className="w-28 h-28 rounded-2xl shadow-sm" />
         </div>
 
         <div className="bg-white border border-stone-200 rounded-2xl p-6">
