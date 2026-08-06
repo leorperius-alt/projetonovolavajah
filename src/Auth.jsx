@@ -42,25 +42,14 @@ export default function Auth({ onAuthed }) {
       return;
     }
 
-    const { data: company, error: companyError } = await supabase
-      .from("companies")
-      .insert({ name: companyName.trim() })
-      .select()
-      .single();
-
-    if (companyError) {
-      setLoading(false);
-      setError("Erro ao criar empresa: " + companyError.message);
-      return;
-    }
-
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .insert({ id: userId, company_id: company.id, full_name: name.trim(), role: "owner" });
+    const { error: rpcError } = await supabase.rpc("create_company", {
+      p_name: companyName.trim(),
+      p_full_name: name.trim(),
+    });
 
     setLoading(false);
-    if (profileError) {
-      setError("Erro ao criar perfil: " + profileError.message);
+    if (rpcError) {
+      setError("Erro ao criar empresa: " + rpcError.message);
       return;
     }
     onAuthed();
