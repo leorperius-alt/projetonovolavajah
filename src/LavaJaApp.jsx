@@ -796,12 +796,14 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode }) {
 
         <p className="text-xs font-semibold text-stone-400 uppercase mt-2">Serviço avulso</p>
         <p className="text-xs text-stone-400 -mt-2">Use para um serviço fora da lista, com valor livre</p>
-        <div className="flex gap-2">
-          <input value={extraName} onChange={(e) => setExtraName(e.target.value)} placeholder="Descrição" className="input flex-1" />
-          <input value={extraPrice} onChange={(e) => setExtraPrice(e.target.value)} type="number" placeholder="Valor" className="input w-24" />
-          <button onClick={addExtraService} type="button" className="shrink-0 bg-stone-700 hover:bg-stone-800 text-white rounded-lg px-3">
-            <Plus size={16} />
-          </button>
+        <div className="flex flex-col gap-2">
+          <input value={extraName} onChange={(e) => setExtraName(e.target.value)} placeholder="Descrição do serviço" className="input" />
+          <div className="flex gap-2">
+            <input value={extraPrice} onChange={(e) => setExtraPrice(e.target.value)} type="number" placeholder="Valor (R$)" className="input flex-1" />
+            <button onClick={addExtraService} type="button" className="shrink-0 bg-stone-700 hover:bg-stone-800 text-white rounded-lg px-4">
+              <Plus size={16} />
+            </button>
+          </div>
         </div>
         {extraServices.length > 0 && (
           <div className="flex flex-col gap-1.5">
