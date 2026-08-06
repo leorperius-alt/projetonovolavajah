@@ -13,11 +13,12 @@ export async function getMyCompanyId() {
 }
 
 export async function fetchAll(companyId) {
-  const [customersRes, vehiclesRes, servicesRes, ordersRes] = await Promise.all([
+  const [customersRes, vehiclesRes, servicesRes, ordersRes, expensesRes] = await Promise.all([
     supabase.from("customers").select("*").eq("company_id", companyId).order("name"),
     supabase.from("vehicles").select("*").eq("company_id", companyId),
     supabase.from("services").select("*").eq("company_id", companyId).order("name"),
     supabase.from("orders").select("*").eq("company_id", companyId).order("created_at", { ascending: false }),
+    supabase.from("expenses").select("*").eq("company_id", companyId).order("expense_date", { ascending: false }),
   ]);
 
   const vehiclesByCustomer = {};
@@ -35,6 +36,7 @@ export async function fetchAll(companyId) {
     customers,
     services: servicesRes.data || [],
     orders: ordersRes.data || [],
+    expenses: expensesRes.data || [],
   };
 }
 
@@ -45,6 +47,7 @@ export function subscribeToChanges(companyId, onChange) {
     .on("postgres_changes", { event: "*", schema: "public", table: "vehicles", filter: `company_id=eq.${companyId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "services", filter: `company_id=eq.${companyId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `company_id=eq.${companyId}` }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "expenses", filter: `company_id=eq.${companyId}` }, onChange)
     .subscribe();
   return () => supabase.removeChannel(channel);
 }
@@ -148,5 +151,21 @@ export async function redeemInvite(token, userId, fullName) {
     p_user_id: userId,
     p_full_name: fullName || null,
   });
+  if (error) throw error;
+}
+
+// ---- Despesas ----
+export async function createExpense(companyId, { description, amount, expense_date }) {
+  const { error } = await supabase.from("expenses").insert({
+    company_id: companyId,
+    description,
+    amount,
+    expense_date: expense_date || new Date().toISOString().slice(0, 10),
+  });
+  if (error) throw error;
+}
+
+export async function deleteExpense(id) {
+  const { error } = await supabase.from("expenses").delete().eq("id", id);
   if (error) throw error;
 }
