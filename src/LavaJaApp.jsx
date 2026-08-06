@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   Car, CalendarClock, Users, Wrench, Wallet, Plus, X, Check, Phone, Trash2, Clock,
   Search, Droplets, CheckCircle2, PlayCircle, LogIn, Banknote, LogOut, UserPlus, Copy, Mail,
+  TrendingDown, FileBarChart, Download,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./lib/db";
@@ -84,6 +85,7 @@ export default function LavaJaApp({ onLogout }) {
     { id: "clientes", label: "Clientes", icon: Users },
     { id: "servicos", label: "Serviços", icon: Wrench },
     { id: "financeiro", label: "Financeiro", icon: Wallet },
+    { id: "relatorios", label: "Relatórios", icon: FileBarChart },
     { id: "equipe", label: "Equipe", icon: UserPlus },
   ];
 
@@ -98,7 +100,7 @@ export default function LavaJaApp({ onLogout }) {
 
       <div className="hidden md:flex md:flex-col w-56 shrink-0 bg-emerald-800 text-emerald-50 p-4">
         <div className="flex items-center gap-2 mb-1 px-2">
-          <Droplets size={26} className="text-orange-400" />
+          <img src="/logo.png" alt="LavaJá" className="w-8 h-8 rounded-lg" />
           <span className="font-display font-semibold text-lg">LavaJá</span>
         </div>
         <p className="px-2 text-xs text-emerald-200/70 mb-6 truncate">{companyName}</p>
@@ -122,7 +124,7 @@ export default function LavaJaApp({ onLogout }) {
       </div>
 
       <div className="md:hidden flex items-center gap-2 px-4 py-3 bg-emerald-800 text-emerald-50">
-        <Droplets size={22} className="text-orange-400" />
+        <img src="/logo.png" alt="LavaJá" className="w-7 h-7 rounded-lg" />
         <span className="font-display font-semibold">LavaJá</span>
         <span className="text-xs text-emerald-200/70 truncate flex-1 text-right">{companyName}</span>
         <button onClick={onLogout} className="text-emerald-200/80">
@@ -135,7 +137,8 @@ export default function LavaJaApp({ onLogout }) {
         {tab === "agenda" && <AgendaView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {tab === "clientes" && <ClientesView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {tab === "servicos" && <ServicosView data={data} companyId={companyId} refetch={refetch} />}
-        {tab === "financeiro" && <FinanceiroView data={data} refetch={refetch} />}
+        {tab === "financeiro" && <FinanceiroView data={data} companyId={companyId} refetch={refetch} />}
+        {tab === "relatorios" && <RelatoriosView data={data} />}
         {tab === "equipe" && <EquipeView companyId={companyId} />}
       </div>
 
@@ -427,10 +430,13 @@ function ServicosView({ data, companyId, refetch }) {
   );
 }
 
-function FinanceiroView({ data, refetch }) {
+function FinanceiroView({ data, companyId, refetch }) {
   const [range, setRange] = useState("hoje");
+  const [expDesc, setExpDesc] = useState("");
+  const [expValor, setExpValor] = useState("");
+  const [expData, setExpData] = useState(todayStr());
 
-  const inRange = (order) => {
+  const inRangeOrder = (order) => {
     if (order.status !== "entregue") return false;
     const d = new Date(order.created_at);
     const now = new Date();
@@ -439,12 +445,36 @@ function FinanceiroView({ data, refetch }) {
     return true;
   };
 
-  const filteredOrders = data.orders.filter(inRange).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const inRangeExpense = (exp) => {
+    const d = new Date(exp.expense_date + "T00:00:00");
+    const now = new Date();
+    if (range === "hoje") return exp.expense_date === todayStr();
+    if (range === "7dias") return now - d <= 7 * 24 * 3600 * 1000;
+    return true;
+  };
+
+  const filteredOrders = data.orders.filter(inRangeOrder).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const filteredExpenses = (data.expenses || []).filter(inRangeExpense).sort((a, b) => new Date(b.expense_date) - new Date(a.expense_date));
   const totalPago = filteredOrders.filter((o) => o.paid).reduce((s, o) => s + o.total, 0);
   const totalPendente = filteredOrders.filter((o) => !o.paid).reduce((s, o) => s + o.total, 0);
+  const totalDespesas = filteredExpenses.reduce((s, e) => s + Number(e.amount), 0);
+  const lucroLiquido = totalPago - totalDespesas;
 
   const toggle = async (order) => {
     await db.togglePaid(order.id, !order.paid);
+    refetch();
+  };
+
+  const addExpense = async () => {
+    if (!expDesc.trim() || !expValor) return;
+    await db.createExpense(companyId, { description: expDesc.trim(), amount: Number(expValor), expense_date: expData });
+    setExpDesc("");
+    setExpValor("");
+    refetch();
+  };
+
+  const removeExpense = async (id) => {
+    await db.deleteExpense(id);
     refetch();
   };
 
@@ -461,7 +491,7 @@ function FinanceiroView({ data, refetch }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-5">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <div className="bg-white border border-stone-200 rounded-xl p-4">
           <p className="text-xs text-stone-500 mb-1">Faturado</p>
           <p className="font-num text-lg font-semibold text-emerald-700">{money(totalPago)}</p>
@@ -471,14 +501,22 @@ function FinanceiroView({ data, refetch }) {
           <p className="font-num text-lg font-semibold text-amber-600">{money(totalPendente)}</p>
         </div>
         <div className="bg-white border border-stone-200 rounded-xl p-4">
+          <p className="text-xs text-stone-500 mb-1">Despesas</p>
+          <p className="font-num text-lg font-semibold text-rose-600">{money(totalDespesas)}</p>
+        </div>
+        <div className="bg-white border border-stone-200 rounded-xl p-4">
+          <p className="text-xs text-stone-500 mb-1">Lucro líquido</p>
+          <p className={`font-num text-lg font-semibold ${lucroLiquido >= 0 ? "text-emerald-700" : "text-rose-600"}`}>{money(lucroLiquido)}</p>
+        </div>
+        <div className="bg-white border border-stone-200 rounded-xl p-4">
           <p className="text-xs text-stone-500 mb-1">Lavagens</p>
           <p className="font-num text-lg font-semibold">{filteredOrders.length}</p>
         </div>
       </div>
 
-      {filteredOrders.length === 0 && <div className="text-center py-16 text-stone-400 text-sm">Nenhuma lavagem concluída neste período</div>}
-
-      <div className="flex flex-col gap-2">
+      <p className="text-xs font-semibold text-stone-400 uppercase mb-2 px-1">Recebimentos</p>
+      {filteredOrders.length === 0 && <div className="text-center py-10 text-stone-400 text-sm">Nenhuma lavagem concluída neste período</div>}
+      <div className="flex flex-col gap-2 mb-6">
         {filteredOrders.map((order) => (
           <div key={order.id} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3">
             <div className="flex-1 min-w-0">
@@ -489,6 +527,157 @@ function FinanceiroView({ data, refetch }) {
             <button onClick={() => toggle(order)} className={`text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1 ${order.paid ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
               <Banknote size={12} /> {order.paid ? "Pago" : "Pendente"}
             </button>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-xs font-semibold text-stone-400 uppercase mb-2 px-1">Despesas</p>
+      <div className="bg-white border border-stone-200 rounded-xl p-4 mb-4">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input value={expDesc} onChange={(e) => setExpDesc(e.target.value)} placeholder="Descrição (ex: produtos de limpeza)" className="flex-1 px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          <input value={expValor} onChange={(e) => setExpValor(e.target.value)} type="number" placeholder="Valor" className="w-full sm:w-28 px-3 py-2.5 rounded-lg border border-stone-200 text-sm font-num focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          <input value={expData} onChange={(e) => setExpData(e.target.value)} type="date" className="w-full sm:w-40 px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          <button onClick={addExpense} className="flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg">
+            <Plus size={15} /> Adicionar
+          </button>
+        </div>
+      </div>
+
+      {filteredExpenses.length === 0 && <div className="text-center py-10 text-stone-400 text-sm">Nenhuma despesa neste período</div>}
+      <div className="flex flex-col gap-2">
+        {filteredExpenses.map((exp) => (
+          <div key={exp.id} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3">
+            <TrendingDown size={16} className="text-rose-500 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">{exp.description}</p>
+              <p className="text-xs text-stone-400">{new Date(exp.expense_date + "T00:00:00").toLocaleDateString("pt-BR")}</p>
+            </div>
+            <span className="font-num text-sm font-semibold text-rose-600">{money(exp.amount)}</span>
+            <button onClick={() => removeExpense(exp.id)} className="text-stone-300 hover:text-rose-500">
+              <Trash2 size={15} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RelatoriosView({ data }) {
+  const [start, setStart] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().slice(0, 10);
+  });
+  const [end, setEnd] = useState(todayStr());
+
+  const ordersInRange = data.orders.filter((o) => {
+    if (o.status !== "entregue") return false;
+    const d = dateStrOf(o.created_at);
+    return d >= start && d <= end;
+  });
+  const expensesInRange = (data.expenses || []).filter((e) => e.expense_date >= start && e.expense_date <= end);
+
+  const totalFaturado = ordersInRange.reduce((s, o) => s + o.total, 0);
+  const totalPago = ordersInRange.filter((o) => o.paid).reduce((s, o) => s + o.total, 0);
+  const totalDespesas = expensesInRange.reduce((s, e) => s + Number(e.amount), 0);
+  const lucroLiquido = totalPago - totalDespesas;
+  const ticketMedio = ordersInRange.length ? totalFaturado / ordersInRange.length : 0;
+
+  const porServico = {};
+  ordersInRange.forEach((o) => {
+    (o.service_ids || []).forEach((id) => {
+      const s = data.services.find((sv) => sv.id === id);
+      if (!s) return;
+      porServico[s.name] = (porServico[s.name] || 0) + 1;
+    });
+    (o.extra_services || []).forEach((e) => {
+      porServico[e.name] = (porServico[e.name] || 0) + 1;
+    });
+  });
+  const rankingServicos = Object.entries(porServico).sort((a, b) => b[1] - a[1]);
+
+  const baixarCsv = () => {
+    const linhas = [["Data", "Cliente", "Placa", "Serviços", "Total", "Status pagamento"]];
+    ordersInRange
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      .forEach((o) => {
+        const customer = data.customers.find((c) => c.id === o.customer_id);
+        const vehicle = customer?.vehicles.find((v) => v.id === o.vehicle_id);
+        const nomesServicos = [
+          ...(o.service_ids || []).map((id) => data.services.find((s) => s.id === id)?.name).filter(Boolean),
+          ...(o.extra_services || []).map((e) => e.name),
+        ].join(" + ");
+        linhas.push([
+          new Date(o.created_at).toLocaleDateString("pt-BR"),
+          customer?.name || "",
+          vehicle?.plate || "",
+          nomesServicos,
+          o.total,
+          o.paid ? "Pago" : "Pendente",
+        ]);
+      });
+    linhas.push([]);
+    linhas.push(["Despesas"]);
+    linhas.push(["Data", "Descrição", "Valor"]);
+    expensesInRange.forEach((e) => {
+      linhas.push([new Date(e.expense_date + "T00:00:00").toLocaleDateString("pt-BR"), e.description, e.amount]);
+    });
+
+    const csv = linhas.map((linha) => linha.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `relatorio_${start}_a_${end}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="p-4 md:p-6">
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+        <h1 className="font-display text-xl font-semibold">Relatórios</h1>
+        <div className="flex items-center gap-2 flex-wrap">
+          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="px-3 py-2 rounded-lg border border-stone-200 text-sm" />
+          <span className="text-stone-400 text-sm">até</span>
+          <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="px-3 py-2 rounded-lg border border-stone-200 text-sm" />
+          <button onClick={baixarCsv} className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2.5 rounded-xl">
+            <Download size={15} /> Baixar CSV
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+        <div className="bg-white border border-stone-200 rounded-xl p-4">
+          <p className="text-xs text-stone-500 mb-1">Faturado</p>
+          <p className="font-num text-lg font-semibold text-emerald-700">{money(totalFaturado)}</p>
+        </div>
+        <div className="bg-white border border-stone-200 rounded-xl p-4">
+          <p className="text-xs text-stone-500 mb-1">Despesas</p>
+          <p className="font-num text-lg font-semibold text-rose-600">{money(totalDespesas)}</p>
+        </div>
+        <div className="bg-white border border-stone-200 rounded-xl p-4">
+          <p className="text-xs text-stone-500 mb-1">Lucro líquido</p>
+          <p className={`font-num text-lg font-semibold ${lucroLiquido >= 0 ? "text-emerald-700" : "text-rose-600"}`}>{money(lucroLiquido)}</p>
+        </div>
+        <div className="bg-white border border-stone-200 rounded-xl p-4">
+          <p className="text-xs text-stone-500 mb-1">Lavagens</p>
+          <p className="font-num text-lg font-semibold">{ordersInRange.length}</p>
+        </div>
+        <div className="bg-white border border-stone-200 rounded-xl p-4">
+          <p className="text-xs text-stone-500 mb-1">Ticket médio</p>
+          <p className="font-num text-lg font-semibold">{money(ticketMedio)}</p>
+        </div>
+      </div>
+
+      <p className="text-xs font-semibold text-stone-400 uppercase mb-2 px-1">Serviços mais pedidos no período</p>
+      {rankingServicos.length === 0 && <p className="text-sm text-stone-400 mb-6">Nenhum serviço registrado nesse período</p>}
+      <div className="flex flex-col gap-2">
+        {rankingServicos.map(([nome, qtd]) => (
+          <div key={nome} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3">
+            <span className="flex-1 text-sm font-medium">{nome}</span>
+            <span className="font-num text-sm text-stone-500">{qtd}x</span>
           </div>
         ))}
       </div>
