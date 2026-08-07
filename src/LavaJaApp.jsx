@@ -21,10 +21,13 @@ const timeAgo = (iso) => {
 export default function LavaJaApp({ onLogout }) {
   const [companyId, setCompanyId] = useState(null);
   const [companyName, setCompanyName] = useState("");
+  const [myRole, setMyRole] = useState(null);
   const [data, setData] = useState({ customers: [], services: [], orders: [] });
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("fila");
   const [modal, setModal] = useState(null);
+
+  const isOwner = myRole === "owner";
 
   const refetch = useCallback(async (cid) => {
     const id = cid || companyId;
@@ -33,10 +36,10 @@ export default function LavaJaApp({ onLogout }) {
     setData(fresh);
   }, [companyId]);
 
-  const loadCompanyWithRetry = async (retries = 8, delayMs = 600) => {
+  const loadProfileWithRetry = async (retries = 8, delayMs = 600) => {
     for (let i = 0; i < retries; i++) {
-      const cid = await db.getMyCompanyId();
-      if (cid) return cid;
+      const profile = await db.getMyProfile();
+      if (profile?.company_id) return profile;
       await new Promise((r) => setTimeout(r, delayMs));
     }
     return null;
@@ -44,8 +47,10 @@ export default function LavaJaApp({ onLogout }) {
 
   useEffect(() => {
     (async () => {
-      const cid = await loadCompanyWithRetry();
+      const profile = await loadProfileWithRetry();
+      const cid = profile?.company_id || null;
       setCompanyId(cid);
+      setMyRole(profile?.role || null);
       if (cid) {
         const { data: company } = await supabase.from("companies").select("name").eq("id", cid).single();
         setCompanyName(company?.name || "");
@@ -79,15 +84,17 @@ export default function LavaJaApp({ onLogout }) {
     );
   }
 
-  const NAV = [
+  const FULL_NAV = [
     { id: "fila", label: "Fila", icon: Car },
     { id: "agenda", label: "Agenda", icon: CalendarClock },
     { id: "clientes", label: "Clientes", icon: Users },
     { id: "servicos", label: "Serviços", icon: Wrench },
-    { id: "financeiro", label: "Financeiro", icon: Wallet },
-    { id: "relatorios", label: "Relatórios", icon: FileBarChart },
-    { id: "equipe", label: "Equipe", icon: UserPlus },
+    { id: "financeiro", label: "Financeiro", icon: Wallet, ownerOnly: true },
+    { id: "relatorios", label: "Relatórios", icon: FileBarChart, ownerOnly: true },
+    { id: "equipe", label: "Equipe", icon: UserPlus, ownerOnly: true },
   ];
+  const NAV = FULL_NAV.filter((n) => !n.ownerOnly || isOwner);
+  const activeTab = NAV.some((n) => n.id === tab) ? tab : "fila";
 
   return (
     <div className="w-full min-h-screen bg-stone-50 text-stone-900 flex flex-col md:flex-row" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -110,7 +117,7 @@ export default function LavaJaApp({ onLogout }) {
               key={n.id}
               onClick={() => setTab(n.id)}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
-                tab === n.id ? "bg-emerald-700 text-white" : "text-emerald-100/80 hover:bg-emerald-700/50"
+                activeTab === n.id ? "bg-emerald-700 text-white" : "text-emerald-100/80 hover:bg-emerald-700/50"
               }`}
             >
               <n.icon size={18} />
@@ -133,13 +140,13 @@ export default function LavaJaApp({ onLogout }) {
       </div>
 
       <div className="flex-1 overflow-y-auto pb-20 md:pb-0">
-        {tab === "fila" && <FilaView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
-        {tab === "agenda" && <AgendaView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
-        {tab === "clientes" && <ClientesView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
-        {tab === "servicos" && <ServicosView data={data} companyId={companyId} refetch={refetch} />}
-        {tab === "financeiro" && <FinanceiroView data={data} companyId={companyId} refetch={refetch} />}
-        {tab === "relatorios" && <RelatoriosView data={data} />}
-        {tab === "equipe" && <EquipeView companyId={companyId} />}
+        {activeTab === "fila" && <FilaView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
+        {activeTab === "agenda" && <AgendaView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
+        {activeTab === "clientes" && <ClientesView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
+        {activeTab === "servicos" && <ServicosView data={data} companyId={companyId} refetch={refetch} />}
+        {activeTab === "financeiro" && isOwner && <FinanceiroView data={data} companyId={companyId} refetch={refetch} />}
+        {activeTab === "relatorios" && isOwner && <RelatoriosView data={data} />}
+        {activeTab === "equipe" && isOwner && <EquipeView companyId={companyId} />}
       </div>
 
       <div className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-stone-200 flex justify-around py-1.5 z-30">
@@ -147,7 +154,7 @@ export default function LavaJaApp({ onLogout }) {
           <button
             key={n.id}
             onClick={() => setTab(n.id)}
-            className={`flex flex-col items-center gap-0.5 px-2 py-1 text-[11px] font-medium ${tab === n.id ? "text-emerald-700" : "text-stone-400"}`}
+            className={`flex flex-col items-center gap-0.5 px-2 py-1 text-[11px] font-medium ${activeTab === n.id ? "text-emerald-700" : "text-stone-400"}`}
           >
             <n.icon size={20} />
             {n.label}
