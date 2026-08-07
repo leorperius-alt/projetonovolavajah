@@ -2,13 +2,14 @@ import React, { useState } from "react";
 import { supabase } from "./supabaseClient";
 
 export default function Auth({ onAuthed }) {
-  const [mode, setMode] = useState("login"); // login | signup
+  const [mode, setMode] = useState("login"); // login | signup | forgot
   const [companyName, setCompanyName] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
 
   const handleLogin = async () => {
     setLoading(true);
@@ -54,6 +55,30 @@ export default function Auth({ onAuthed }) {
     onAuthed();
   };
 
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      setError("Digite seu e-mail.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: window.location.origin,
+    });
+    setLoading(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setForgotSent(true);
+  };
+
+  const backToLogin = () => {
+    setMode("login");
+    setForgotSent(false);
+    setError("");
+  };
+
   return (
     <div className="min-h-screen bg-stone-50 flex items-center justify-center p-4" style={{ fontFamily: "'Inter', sans-serif" }}>
       <div className="w-full max-w-sm">
@@ -62,53 +87,92 @@ export default function Auth({ onAuthed }) {
         </div>
 
         <div className="bg-white border border-stone-200 rounded-2xl p-6">
-          <div className="flex gap-2 mb-5">
-            <button
-              onClick={() => setMode("login")}
-              className={`flex-1 text-sm font-medium py-2 rounded-lg ${mode === "login" ? "bg-emerald-700 text-white" : "bg-stone-100 text-stone-600"}`}
-            >
-              Entrar
-            </button>
-            <button
-              onClick={() => setMode("signup")}
-              className={`flex-1 text-sm font-medium py-2 rounded-lg ${mode === "signup" ? "bg-emerald-700 text-white" : "bg-stone-100 text-stone-600"}`}
-            >
-              Criar empresa
-            </button>
-          </div>
+          {mode !== "forgot" && (
+            <div className="flex gap-2 mb-5">
+              <button
+                onClick={() => setMode("login")}
+                className={`flex-1 text-sm font-medium py-2 rounded-lg ${mode === "login" ? "bg-emerald-700 text-white" : "bg-stone-100 text-stone-600"}`}
+              >
+                Entrar
+              </button>
+              <button
+                onClick={() => setMode("signup")}
+                className={`flex-1 text-sm font-medium py-2 rounded-lg ${mode === "signup" ? "bg-emerald-700 text-white" : "bg-stone-100 text-stone-600"}`}
+              >
+                Criar empresa
+              </button>
+            </div>
+          )}
 
-          <div className="flex flex-col gap-3">
-            {mode === "signup" && (
-              <>
-                <Field label="Nome da sua lavagem">
-                  <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="input" placeholder="Ex: Lava-rápido do João" />
+          {mode === "forgot" ? (
+            forgotSent ? (
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-stone-600">
+                  Se existir uma conta com o e-mail <span className="font-semibold">{email}</span>, enviamos um link pra você criar uma senha nova. Confira sua caixa de entrada (e o spam).
+                </p>
+                <button onClick={backToLogin} className="mt-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-medium text-sm py-3 rounded-xl">
+                  Voltar para o login
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-stone-600 mb-1">Digite seu e-mail e mandamos um link pra você criar uma senha nova.</p>
+                <Field label="E-mail">
+                  <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className="input" />
                 </Field>
-                <Field label="Seu nome">
-                  <input value={name} onChange={(e) => setName(e.target.value)} className="input" />
-                </Field>
-              </>
-            )}
-            <Field label="E-mail">
-              <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className="input" />
-            </Field>
-            <Field label="Senha">
-              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" className="input" />
-            </Field>
+                {error && <p className="text-xs text-rose-600">{error}</p>}
+                <button
+                  disabled={loading}
+                  onClick={handleForgotPassword}
+                  className="mt-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-medium text-sm py-3 rounded-xl"
+                >
+                  {loading ? "Aguarde..." : "Enviar link de recuperação"}
+                </button>
+                <button onClick={backToLogin} className="text-xs text-stone-500 hover:text-stone-700 text-center mt-1">
+                  Voltar para o login
+                </button>
+              </div>
+            )
+          ) : (
+            <div className="flex flex-col gap-3">
+              {mode === "signup" && (
+                <>
+                  <Field label="Nome da sua lavagem">
+                    <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="input" placeholder="Ex: Lava-rápido do João" />
+                  </Field>
+                  <Field label="Seu nome">
+                    <input value={name} onChange={(e) => setName(e.target.value)} className="input" />
+                  </Field>
+                </>
+              )}
+              <Field label="E-mail">
+                <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className="input" />
+              </Field>
+              <Field label="Senha">
+                <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" className="input" />
+              </Field>
 
-            {error && <p className="text-xs text-rose-600">{error}</p>}
+              {mode === "login" && (
+                <button onClick={() => { setMode("forgot"); setError(""); }} className="text-xs text-emerald-700 hover:text-emerald-800 text-right -mt-1">
+                  Esqueci minha senha
+                </button>
+              )}
 
-            <button
-              disabled={loading}
-              onClick={mode === "login" ? handleLogin : handleSignup}
-              className="mt-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-medium text-sm py-3 rounded-xl"
-            >
-              {loading ? "Aguarde..." : mode === "login" ? "Entrar" : "Criar minha empresa"}
-            </button>
-          </div>
+              {error && <p className="text-xs text-rose-600">{error}</p>}
+
+              <button
+                disabled={loading}
+                onClick={mode === "login" ? handleLogin : handleSignup}
+                className="mt-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-medium text-sm py-3 rounded-xl"
+              >
+                {loading ? "Aguarde..." : mode === "login" ? "Entrar" : "Criar minha empresa"}
+              </button>
+            </div>
+          )}
         </div>
         {mode === "signup" && (
           <p className="text-xs text-stone-400 text-center mt-4">
-            Depois de criar a empresa, convide seus funcionários pedindo pra eles criarem login e você vinculando o company_id — veja o README.
+            Depois de criar a empresa, convide seus funcionários pela aba Equipe do painel.
           </p>
         )}
       </div>
