@@ -1,4 +1,4 @@
-import { supabase } from "../supabaseClient";
+// import { supabase } from "../supabaseClient";
 
 export async function getMyCompanyId() {
   const { data: auth } = await supabase.auth.getUser();
@@ -10,6 +10,18 @@ export async function getMyCompanyId() {
     .single();
   if (error) return null;
   return data.company_id;
+}
+
+export async function getMyProfile() {
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth?.user) return null;
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("company_id, role, full_name")
+    .eq("id", auth.user.id)
+    .single();
+  if (error) return null;
+  return data;
 }
 
 export async function fetchAll(companyId) {
