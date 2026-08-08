@@ -1,4 +1,4 @@
-// import { supabase } from "../supabaseClient";
+import { supabase } from "../supabaseClient";
 
 export async function getMyCompanyId() {
   const { data: auth } = await supabase.auth.getUser();
