@@ -86,15 +86,15 @@ export default function LavaJaApp({ onLogout }) {
   }, [companyId, refetch]);
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-stone-400">Carregando...</div>;
+    return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-500">Carregando...</div>;
   }
 
   if (blocked) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-3 text-center px-4">
-        <p className="text-stone-700 font-medium">Seu acesso foi bloqueado.</p>
-        <p className="text-sm text-stone-500 max-w-sm">Fale com o responsável da empresa se achar que isso é um engano.</p>
-        <button onClick={onLogout} className="mt-2 bg-stone-700 hover:bg-stone-800 text-white text-sm font-medium px-4 py-2.5 rounded-xl">
+      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center gap-3 text-center px-4">
+        <p className="text-zinc-300 font-medium">Seu acesso foi bloqueado.</p>
+        <p className="text-sm text-zinc-400 max-w-sm">Fale com o responsável da empresa se achar que isso é um engano.</p>
+        <button onClick={onLogout} className="mt-2 bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl">
           Sair
         </button>
       </div>
@@ -103,13 +103,13 @@ export default function LavaJaApp({ onLogout }) {
 
   if (!companyId) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-3 text-center px-4">
-        <p className="text-stone-700 font-medium">Não conseguimos encontrar sua empresa ainda.</p>
-        <p className="text-sm text-stone-500 max-w-sm">Isso pode acontecer logo após criar a conta. Atualize a página em alguns segundos.</p>
-        <button onClick={() => window.location.reload()} className="mt-2 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2.5 rounded-xl">
+      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center gap-3 text-center px-4">
+        <p className="text-zinc-300 font-medium">Não conseguimos encontrar sua empresa ainda.</p>
+        <p className="text-sm text-zinc-400 max-w-sm">Isso pode acontecer logo após criar a conta. Atualize a página em alguns segundos.</p>
+        <button onClick={() => window.location.reload()} className="mt-2 bg-zinc-700 hover:bg-zinc-900 text-white text-sm font-medium px-4 py-2.5 rounded-xl">
           Atualizar página
         </button>
-        <button onClick={onLogout} className="text-xs text-stone-400 hover:text-stone-600 mt-1">Sair</button>
+        <button onClick={onLogout} className="text-xs text-zinc-500 hover:text-zinc-400 mt-1">Sair</button>
       </div>
     );
   }
@@ -127,27 +127,28 @@ export default function LavaJaApp({ onLogout }) {
   const activeTab = NAV.some((n) => n.id === tab) ? tab : "fila";
 
   return (
-    <div className="w-full min-h-screen bg-stone-50 text-stone-900 flex flex-col md:flex-row" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="w-full min-h-screen bg-zinc-950 text-zinc-100 flex flex-col md:flex-row" style={{ fontFamily: "'Inter', sans-serif" }}>
       <style>{`
         .font-display { font-family: 'Space Grotesk', sans-serif; }
         .font-num { font-family: 'JetBrains Mono', monospace; }
-        .input { width: 100%; padding: 0.6rem 0.75rem; border-radius: 0.6rem; border: 1px solid #e7e5e4; font-size: 0.875rem; outline: none; }
-        .input:focus { box-shadow: 0 0 0 2px #059669; border-color: #059669; }
+        .input { width: 100%; padding: 0.6rem 0.75rem; border-radius: 0.6rem; border: 1px solid #3f3f46; background-color: #18181b; color: #f4f4f5; font-size: 0.875rem; outline: none; }
+        .input::placeholder { color: #71717a; }
+        .input:focus { box-shadow: 0 0 0 2px #71717a; border-color: #71717a; }
       `}</style>
 
-      <div className="hidden md:flex md:flex-col w-56 shrink-0 bg-emerald-800 text-emerald-50 p-4">
+      <div className="hidden md:flex md:flex-col w-56 shrink-0 bg-zinc-900 text-zinc-100 p-4">
         <div className="flex items-center gap-2 mb-1 px-2">
           <img src="/logo.png" alt="LavaJá" className="w-8 h-8 rounded-lg" />
           <span className="font-display font-semibold text-lg">LavaJá</span>
         </div>
-        <p className="px-2 text-xs text-emerald-200/70 mb-6 truncate">{companyName}</p>
+        <p className="px-2 text-xs text-zinc-500/70 mb-6 truncate">{companyName}</p>
         <nav className="flex flex-col gap-1 flex-1">
           {NAV.map((n) => (
             <button
               key={n.id}
               onClick={() => setTab(n.id)}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
-                activeTab === n.id ? "bg-emerald-700 text-white" : "text-emerald-100/80 hover:bg-emerald-700/50"
+                activeTab === n.id ? "bg-zinc-700 text-white" : "text-zinc-400/80 hover:bg-zinc-700/50"
               }`}
             >
               <n.icon size={18} />
@@ -155,16 +156,16 @@ export default function LavaJaApp({ onLogout }) {
             </button>
           ))}
         </nav>
-        <button onClick={onLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-emerald-100/70 hover:bg-emerald-700/50">
+        <button onClick={onLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-zinc-400/70 hover:bg-zinc-700/50">
           <LogOut size={18} /> Sair
         </button>
       </div>
 
-      <div className="md:hidden flex items-center gap-2 px-4 py-3 bg-emerald-800 text-emerald-50">
+      <div className="md:hidden flex items-center gap-2 px-4 py-3 bg-zinc-900 text-zinc-100">
         <img src="/logo.png" alt="LavaJá" className="w-7 h-7 rounded-lg" />
         <span className="font-display font-semibold">LavaJá</span>
-        <span className="text-xs text-emerald-200/70 truncate flex-1 text-right">{companyName}</span>
-        <button onClick={onLogout} className="text-emerald-200/80">
+        <span className="text-xs text-zinc-500/70 truncate flex-1 text-right">{companyName}</span>
+        <button onClick={onLogout} className="text-zinc-500/80">
           <LogOut size={18} />
         </button>
       </div>
@@ -179,12 +180,12 @@ export default function LavaJaApp({ onLogout }) {
         {activeTab === "equipe" && isOwner && <EquipeView companyId={companyId} />}
       </div>
 
-      <div className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-stone-200 flex justify-around py-1.5 z-30">
+      <div className="md:hidden fixed bottom-0 inset-x-0 bg-zinc-900 border-t border-zinc-800 flex justify-around py-1.5 z-30">
         {NAV.map((n) => (
           <button
             key={n.id}
             onClick={() => setTab(n.id)}
-            className={`flex flex-col items-center gap-0.5 px-2 py-1 text-[11px] font-medium ${activeTab === n.id ? "text-emerald-700" : "text-stone-400"}`}
+            className={`flex flex-col items-center gap-0.5 px-2 py-1 text-[11px] font-medium ${activeTab === n.id ? "text-zinc-200" : "text-zinc-500"}`}
           >
             <n.icon size={20} />
             {n.label}
@@ -203,7 +204,7 @@ function OrderCustomerLine({ data, order }) {
   return (
     <div>
       <p className="font-semibold text-sm">{vehicle ? vehicle.plate : "—"} · {vehicle?.model}</p>
-      <p className="text-xs text-stone-500">{customer?.name}</p>
+      <p className="text-xs text-zinc-400">{customer?.name}</p>
     </div>
   );
 }
@@ -211,7 +212,7 @@ function OrderCustomerLine({ data, order }) {
 function OrderServicesLine({ data, order }) {
   const names = (order.service_ids || []).map((id) => data.services.find((s) => s.id === id)?.name).filter(Boolean);
   const extraNames = (order.extra_services || []).map((e) => e.name);
-  return <p className="text-xs text-stone-500 truncate">{[...names, ...extraNames].join(", ")}</p>;
+  return <p className="text-xs text-zinc-400 truncate">{[...names, ...extraNames].join(", ")}</p>;
 }
 
 function FilaView({ data, refetch, setModal }) {
@@ -231,9 +232,9 @@ function FilaView({ data, refetch, setModal }) {
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="font-display text-xl font-semibold">Fila do dia</h1>
-          <p className="text-sm text-stone-500">{active.length} veículo(s) em atendimento</p>
+          <p className="text-sm text-zinc-400">{active.length} veículo(s) em atendimento</p>
         </div>
-        <button onClick={() => setModal({ type: "novoCarro" })} className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-sm">
+        <button onClick={() => setModal({ type: "novoCarro" })} className="flex items-center gap-1.5 bg-zinc-600 hover:bg-zinc-500 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-sm">
           <Plus size={16} /> Novo carro
         </button>
       </div>
@@ -242,21 +243,21 @@ function FilaView({ data, refetch, setModal }) {
         {columns.map((col) => {
           const items = active.filter((o) => o.status === col.key);
           return (
-            <div key={col.key} className="bg-white rounded-2xl border border-stone-200 p-3">
+            <div key={col.key} className="bg-zinc-900 rounded-2xl border border-zinc-800 p-3">
               <div className="flex items-center gap-2 mb-3 px-1">
-                <col.icon size={16} className="text-stone-500" />
-                <span className="text-sm font-semibold text-stone-700">{col.title}</span>
-                <span className="ml-auto text-xs font-num text-stone-400">{items.length}</span>
+                <col.icon size={16} className="text-zinc-400" />
+                <span className="text-sm font-semibold text-zinc-300">{col.title}</span>
+                <span className="ml-auto text-xs font-num text-zinc-500">{items.length}</span>
               </div>
               <div className="flex flex-col gap-2 min-h-[80px]">
-                {items.length === 0 && <p className="text-xs text-stone-400 px-1 py-4 text-center">Nenhum carro aqui</p>}
+                {items.length === 0 && <p className="text-xs text-zinc-500 px-1 py-4 text-center">Nenhum carro aqui</p>}
                 {items.map((order) => (
-                  <div key={order.id} className="border border-stone-200 rounded-xl p-3 bg-stone-50">
+                  <div key={order.id} className="border border-zinc-800 rounded-xl p-3 bg-zinc-950">
                     <OrderCustomerLine data={data} order={order} />
                     <OrderServicesLine data={data} order={order} />
                     <div className="flex items-center justify-between mt-2">
-                      <span className="text-xs text-stone-400">há {timeAgo(order.created_at)}</span>
-                      <span className="font-num text-sm font-semibold text-emerald-700">{money(order.total)}</span>
+                      <span className="text-xs text-zinc-500">há {timeAgo(order.created_at)}</span>
+                      <span className="font-num text-sm font-semibold text-zinc-200">{money(order.total)}</span>
                     </div>
                     <div className="mt-2">
                       {col.key === "aguardando" && (
@@ -265,12 +266,12 @@ function FilaView({ data, refetch, setModal }) {
                         </button>
                       )}
                       {col.key === "lavando" && (
-                        <button onClick={() => advance(order, "pronto")} className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg py-2">
+                        <button onClick={() => advance(order, "pronto")} className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-zinc-600 hover:bg-zinc-700 text-white rounded-lg py-2">
                           <CheckCircle2 size={14} /> Marcar pronto
                         </button>
                       )}
                       {col.key === "pronto" && (
-                        <button onClick={() => advance(order, "entregue")} className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-stone-700 hover:bg-stone-800 text-white rounded-lg py-2">
+                        <button onClick={() => advance(order, "entregue")} className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg py-2">
                           <Check size={14} /> Entregar
                         </button>
                       )}
@@ -308,26 +309,26 @@ function AgendaView({ data, refetch, setModal }) {
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="font-display text-xl font-semibold">Agenda</h1>
-          <p className="text-sm text-stone-500">{scheduled.length} agendamento(s)</p>
+          <p className="text-sm text-zinc-400">{scheduled.length} agendamento(s)</p>
         </div>
-        <button onClick={() => setModal({ type: "novoAgendamento" })} className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-sm">
+        <button onClick={() => setModal({ type: "novoAgendamento" })} className="flex items-center gap-1.5 bg-zinc-600 hover:bg-zinc-500 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-sm">
           <Plus size={16} /> Novo agendamento
         </button>
       </div>
 
-      {Object.keys(groups).length === 0 && <div className="text-center py-16 text-stone-400 text-sm">Nenhum agendamento cadastrado</div>}
+      {Object.keys(groups).length === 0 && <div className="text-center py-16 text-zinc-500 text-sm">Nenhum agendamento cadastrado</div>}
 
       <div className="flex flex-col gap-5">
         {Object.entries(groups).map(([date, items]) => (
           <div key={date}>
-            <p className="text-xs font-semibold uppercase text-stone-400 mb-2 px-1">
+            <p className="text-xs font-semibold uppercase text-zinc-500 mb-2 px-1">
               {new Date(date + "T00:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
               {date === todayStr() && " · hoje"}
             </p>
             <div className="flex flex-col gap-2">
               {items.map((order) => (
-                <div key={order.id} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3">
-                  <div className="font-num text-sm font-semibold text-emerald-700 w-14 shrink-0">
+                <div key={order.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex items-center gap-3">
+                  <div className="font-num text-sm font-semibold text-zinc-200 w-14 shrink-0">
                     {new Date(order.scheduled_time).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -336,7 +337,7 @@ function AgendaView({ data, refetch, setModal }) {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-num text-sm font-semibold">{money(order.total)}</p>
-                    <button onClick={() => checkIn(order)} className="mt-1 flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-800">
+                    <button onClick={() => checkIn(order)} className="mt-1 flex items-center gap-1 text-xs font-medium text-zinc-200 hover:text-zinc-100">
                       <LogIn size={12} /> Check-in
                     </button>
                   </div>
@@ -366,33 +367,33 @@ function ClientesView({ data, companyId, refetch, setModal }) {
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="font-display text-xl font-semibold">Clientes</h1>
-          <p className="text-sm text-stone-500">{data.customers.length} cliente(s) cadastrado(s)</p>
+          <p className="text-sm text-zinc-400">{data.customers.length} cliente(s) cadastrado(s)</p>
         </div>
-        <button onClick={() => setModal({ type: "novoCliente" })} className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-sm">
+        <button onClick={() => setModal({ type: "novoCliente" })} className="flex items-center gap-1.5 bg-zinc-600 hover:bg-zinc-500 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-sm">
           <Plus size={16} /> Novo cliente
         </button>
       </div>
 
       <div className="relative mb-4">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome, telefone ou placa" className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome, telefone ou placa" className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-zinc-800 text-sm bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-500" />
       </div>
 
-      {filtered.length === 0 && <div className="text-center py-16 text-stone-400 text-sm">Nenhum cliente encontrado</div>}
+      {filtered.length === 0 && <div className="text-center py-16 text-zinc-500 text-sm">Nenhum cliente encontrado</div>}
 
       <div className="flex flex-col gap-2">
         {filtered.map((c) => (
-          <div key={c.id} className="bg-white border border-stone-200 rounded-xl p-4">
+          <div key={c.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
             <div className="flex items-start justify-between">
               <div>
                 <p className="font-semibold text-sm">{c.name}</p>
-                {c.phone && <p className="text-xs text-stone-500 flex items-center gap-1 mt-0.5"><Phone size={11} /> {c.phone}</p>}
+                {c.phone && <p className="text-xs text-zinc-400 flex items-center gap-1 mt-0.5"><Phone size={11} /> {c.phone}</p>}
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => setModal({ type: "novoVeiculo", customerId: c.id })} className="text-xs font-medium text-emerald-700 hover:text-emerald-800 flex items-center gap-1">
+                <button onClick={() => setModal({ type: "novoVeiculo", customerId: c.id })} className="text-xs font-medium text-zinc-200 hover:text-zinc-100 flex items-center gap-1">
                   <Plus size={12} /> Veículo
                 </button>
-                <button onClick={() => removeCustomer(c.id)} className="text-stone-300 hover:text-rose-500">
+                <button onClick={() => removeCustomer(c.id)} className="text-zinc-600 hover:text-rose-400">
                   <Trash2 size={15} />
                 </button>
               </div>
@@ -400,7 +401,7 @@ function ClientesView({ data, companyId, refetch, setModal }) {
             {c.vehicles.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {c.vehicles.map((v) => (
-                  <span key={v.id} className="text-xs bg-stone-100 text-stone-700 rounded-lg px-2.5 py-1">
+                  <span key={v.id} className="text-xs bg-zinc-800 text-zinc-300 rounded-lg px-2.5 py-1">
                     {v.plate} · {v.model} {v.color ? `(${v.color})` : ""}
                   </span>
                 ))}
@@ -438,26 +439,26 @@ function ServicosView({ data, companyId, refetch }) {
   return (
     <div className="p-4 md:p-6">
       <h1 className="font-display text-xl font-semibold mb-1">Serviços</h1>
-      <p className="text-sm text-stone-500 mb-5">{data.services.length} serviço(s) cadastrado(s)</p>
+      <p className="text-sm text-zinc-400 mb-5">{data.services.length} serviço(s) cadastrado(s)</p>
 
-      <div className="bg-white border border-stone-200 rounded-xl p-4 mb-5 flex flex-col sm:flex-row gap-2">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do serviço" className="flex-1 px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-        <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" placeholder="Preço" className="w-full sm:w-32 px-3 py-2.5 rounded-lg border border-stone-200 text-sm font-num focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-        <button onClick={add} className="flex items-center justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-5 flex flex-col sm:flex-row gap-2">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do serviço" className="flex-1 px-3 py-2.5 rounded-lg border border-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-500" />
+        <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" placeholder="Preço" className="w-full sm:w-32 px-3 py-2.5 rounded-lg border border-zinc-800 text-sm font-num focus:outline-none focus:ring-2 focus:ring-zinc-500" />
+        <button onClick={add} className="flex items-center justify-center gap-1.5 bg-zinc-700 hover:bg-zinc-900 text-white text-sm font-medium px-4 py-2.5 rounded-lg">
           <Plus size={15} /> Adicionar
         </button>
       </div>
 
       <div className="flex flex-col gap-2">
         {data.services.map((s) => (
-          <div key={s.id} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3">
-            <Wrench size={16} className="text-stone-400 shrink-0" />
+          <div key={s.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex items-center gap-3">
+            <Wrench size={16} className="text-zinc-500 shrink-0" />
             <span className="flex-1 text-sm font-medium">{s.name}</span>
             <div className="flex items-center gap-1 font-num text-sm">
-              <span className="text-stone-400">R$</span>
-              <input defaultValue={s.price} onBlur={(e) => updatePrice(s.id, e.target.value)} type="number" className="w-20 px-2 py-1 rounded-lg border border-stone-200 text-right focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              <span className="text-zinc-500">R$</span>
+              <input defaultValue={s.price} onBlur={(e) => updatePrice(s.id, e.target.value)} type="number" className="w-20 px-2 py-1 rounded-lg border border-zinc-800 text-right focus:outline-none focus:ring-2 focus:ring-zinc-500" />
             </div>
-            <button onClick={() => remove(s.id)} className="text-stone-300 hover:text-rose-500">
+            <button onClick={() => remove(s.id)} className="text-zinc-600 hover:text-rose-400">
               <Trash2 size={15} />
             </button>
           </div>
@@ -519,9 +520,9 @@ function FinanceiroView({ data, companyId, refetch }) {
     <div className="p-4 md:p-6">
       <div className="flex items-center justify-between mb-5">
         <h1 className="font-display text-xl font-semibold">Financeiro</h1>
-        <div className="flex gap-1 bg-white border border-stone-200 rounded-xl p-1">
+        <div className="flex gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1">
           {[{ k: "hoje", l: "Hoje" }, { k: "7dias", l: "7 dias" }, { k: "todos", l: "Tudo" }].map((o) => (
-            <button key={o.k} onClick={() => setRange(o.k)} className={`text-xs font-medium px-3 py-1.5 rounded-lg ${range === o.k ? "bg-emerald-700 text-white" : "text-stone-500"}`}>
+            <button key={o.k} onClick={() => setRange(o.k)} className={`text-xs font-medium px-3 py-1.5 rounded-lg ${range === o.k ? "bg-zinc-700 text-white" : "text-zinc-400"}`}>
               {o.l}
             </button>
           ))}
@@ -529,68 +530,68 @@ function FinanceiroView({ data, companyId, refetch }) {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <div className="bg-white border border-stone-200 rounded-xl p-4">
-          <p className="text-xs text-stone-500 mb-1">Faturado</p>
-          <p className="font-num text-lg font-semibold text-emerald-700">{money(totalPago)}</p>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <p className="text-xs text-zinc-400 mb-1">Faturado</p>
+          <p className="font-num text-lg font-semibold text-zinc-200">{money(totalPago)}</p>
         </div>
-        <div className="bg-white border border-stone-200 rounded-xl p-4">
-          <p className="text-xs text-stone-500 mb-1">A receber</p>
-          <p className="font-num text-lg font-semibold text-amber-600">{money(totalPendente)}</p>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <p className="text-xs text-zinc-400 mb-1">A receber</p>
+          <p className="font-num text-lg font-semibold text-amber-500">{money(totalPendente)}</p>
         </div>
-        <div className="bg-white border border-stone-200 rounded-xl p-4">
-          <p className="text-xs text-stone-500 mb-1">Despesas</p>
-          <p className="font-num text-lg font-semibold text-rose-600">{money(totalDespesas)}</p>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <p className="text-xs text-zinc-400 mb-1">Despesas</p>
+          <p className="font-num text-lg font-semibold text-rose-400">{money(totalDespesas)}</p>
         </div>
-        <div className="bg-white border border-stone-200 rounded-xl p-4">
-          <p className="text-xs text-stone-500 mb-1">Lucro líquido</p>
-          <p className={`font-num text-lg font-semibold ${lucroLiquido >= 0 ? "text-emerald-700" : "text-rose-600"}`}>{money(lucroLiquido)}</p>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <p className="text-xs text-zinc-400 mb-1">Lucro líquido</p>
+          <p className={`font-num text-lg font-semibold ${lucroLiquido >= 0 ? "text-zinc-200" : "text-rose-400"}`}>{money(lucroLiquido)}</p>
         </div>
-        <div className="bg-white border border-stone-200 rounded-xl p-4">
-          <p className="text-xs text-stone-500 mb-1">Lavagens</p>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <p className="text-xs text-zinc-400 mb-1">Lavagens</p>
           <p className="font-num text-lg font-semibold">{filteredOrders.length}</p>
         </div>
       </div>
 
-      <p className="text-xs font-semibold text-stone-400 uppercase mb-2 px-1">Recebimentos</p>
-      {filteredOrders.length === 0 && <div className="text-center py-10 text-stone-400 text-sm">Nenhuma lavagem concluída neste período</div>}
+      <p className="text-xs font-semibold text-zinc-500 uppercase mb-2 px-1">Recebimentos</p>
+      {filteredOrders.length === 0 && <div className="text-center py-10 text-zinc-500 text-sm">Nenhuma lavagem concluída neste período</div>}
       <div className="flex flex-col gap-2 mb-6">
         {filteredOrders.map((order) => (
-          <div key={order.id} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3">
+          <div key={order.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex items-center gap-3">
             <div className="flex-1 min-w-0">
               <OrderCustomerLine data={data} order={order} />
               <OrderServicesLine data={data} order={order} />
             </div>
             <span className="font-num text-sm font-semibold">{money(order.total)}</span>
-            <button onClick={() => toggle(order)} className={`text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1 ${order.paid ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+            <button onClick={() => toggle(order)} className={`text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1 ${order.paid ? "bg-zinc-800 text-zinc-100" : "bg-amber-950 text-amber-300"}`}>
               <Banknote size={12} /> {order.paid ? "Pago" : "Pendente"}
             </button>
           </div>
         ))}
       </div>
 
-      <p className="text-xs font-semibold text-stone-400 uppercase mb-2 px-1">Despesas</p>
-      <div className="bg-white border border-stone-200 rounded-xl p-4 mb-4">
+      <p className="text-xs font-semibold text-zinc-500 uppercase mb-2 px-1">Despesas</p>
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-4">
         <div className="flex flex-col sm:flex-row gap-2">
-          <input value={expDesc} onChange={(e) => setExpDesc(e.target.value)} placeholder="Descrição (ex: produtos de limpeza)" className="flex-1 px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-          <input value={expValor} onChange={(e) => setExpValor(e.target.value)} type="number" placeholder="Valor" className="w-full sm:w-28 px-3 py-2.5 rounded-lg border border-stone-200 text-sm font-num focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-          <input value={expData} onChange={(e) => setExpData(e.target.value)} type="date" className="w-full sm:w-40 px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          <input value={expDesc} onChange={(e) => setExpDesc(e.target.value)} placeholder="Descrição (ex: produtos de limpeza)" className="flex-1 px-3 py-2.5 rounded-lg border border-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-500" />
+          <input value={expValor} onChange={(e) => setExpValor(e.target.value)} type="number" placeholder="Valor" className="w-full sm:w-28 px-3 py-2.5 rounded-lg border border-zinc-800 text-sm font-num focus:outline-none focus:ring-2 focus:ring-zinc-500" />
+          <input value={expData} onChange={(e) => setExpData(e.target.value)} type="date" className="w-full sm:w-40 px-3 py-2.5 rounded-lg border border-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-500" />
           <button onClick={addExpense} className="flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg">
             <Plus size={15} /> Adicionar
           </button>
         </div>
       </div>
 
-      {filteredExpenses.length === 0 && <div className="text-center py-10 text-stone-400 text-sm">Nenhuma despesa neste período</div>}
+      {filteredExpenses.length === 0 && <div className="text-center py-10 text-zinc-500 text-sm">Nenhuma despesa neste período</div>}
       <div className="flex flex-col gap-2">
         {filteredExpenses.map((exp) => (
-          <div key={exp.id} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3">
-            <TrendingDown size={16} className="text-rose-500 shrink-0" />
+          <div key={exp.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex items-center gap-3">
+            <TrendingDown size={16} className="text-rose-400 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium">{exp.description}</p>
-              <p className="text-xs text-stone-400">{new Date(exp.expense_date + "T00:00:00").toLocaleDateString("pt-BR")}</p>
+              <p className="text-xs text-zinc-500">{new Date(exp.expense_date + "T00:00:00").toLocaleDateString("pt-BR")}</p>
             </div>
-            <span className="font-num text-sm font-semibold text-rose-600">{money(exp.amount)}</span>
-            <button onClick={() => removeExpense(exp.id)} className="text-stone-300 hover:text-rose-500">
+            <span className="font-num text-sm font-semibold text-rose-400">{money(exp.amount)}</span>
+            <button onClick={() => removeExpense(exp.id)} className="text-zinc-600 hover:text-rose-400">
               <Trash2 size={15} />
             </button>
           </div>
@@ -691,51 +692,51 @@ function RelatoriosView({ data }) {
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <h1 className="font-display text-xl font-semibold">Relatórios</h1>
         <div className="flex items-center gap-2 flex-wrap">
-          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="px-3 py-2 rounded-lg border border-stone-200 text-sm" />
-          <span className="text-stone-400 text-sm">até</span>
-          <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="px-3 py-2 rounded-lg border border-stone-200 text-sm" />
-          <button onClick={baixarCsv} className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2.5 rounded-xl">
+          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="px-3 py-2 rounded-lg border border-zinc-800 text-sm" />
+          <span className="text-zinc-500 text-sm">até</span>
+          <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="px-3 py-2 rounded-lg border border-zinc-800 text-sm" />
+          <button onClick={baixarCsv} className="flex items-center gap-1.5 bg-zinc-700 hover:bg-zinc-900 text-white text-sm font-medium px-4 py-2.5 rounded-xl">
             <Download size={15} /> Baixar CSV
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <div className="bg-white border border-stone-200 rounded-xl p-4">
-          <p className="text-xs text-stone-500 mb-1">Faturado</p>
-          <p className="font-num text-lg font-semibold text-emerald-700">{money(totalFaturado)}</p>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <p className="text-xs text-zinc-400 mb-1">Faturado</p>
+          <p className="font-num text-lg font-semibold text-zinc-200">{money(totalFaturado)}</p>
         </div>
-        <div className="bg-white border border-stone-200 rounded-xl p-4">
-          <p className="text-xs text-stone-500 mb-1">Despesas</p>
-          <p className="font-num text-lg font-semibold text-rose-600">{money(totalDespesas)}</p>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <p className="text-xs text-zinc-400 mb-1">Despesas</p>
+          <p className="font-num text-lg font-semibold text-rose-400">{money(totalDespesas)}</p>
         </div>
-        <div className="bg-white border border-stone-200 rounded-xl p-4">
-          <p className="text-xs text-stone-500 mb-1">Lucro líquido</p>
-          <p className={`font-num text-lg font-semibold ${lucroLiquido >= 0 ? "text-emerald-700" : "text-rose-600"}`}>{money(lucroLiquido)}</p>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <p className="text-xs text-zinc-400 mb-1">Lucro líquido</p>
+          <p className={`font-num text-lg font-semibold ${lucroLiquido >= 0 ? "text-zinc-200" : "text-rose-400"}`}>{money(lucroLiquido)}</p>
         </div>
-        <div className="bg-white border border-stone-200 rounded-xl p-4">
-          <p className="text-xs text-stone-500 mb-1">Lavagens</p>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <p className="text-xs text-zinc-400 mb-1">Lavagens</p>
           <p className="font-num text-lg font-semibold">{ordersInRange.length}</p>
         </div>
-        <div className="bg-white border border-stone-200 rounded-xl p-4">
-          <p className="text-xs text-stone-500 mb-1">Ticket médio</p>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <p className="text-xs text-zinc-400 mb-1">Ticket médio</p>
           <p className="font-num text-lg font-semibold">{money(ticketMedio)}</p>
         </div>
       </div>
 
-      <p className="text-xs font-semibold text-stone-400 uppercase mb-2 px-1">Serviços mais pedidos no período</p>
-      {rankingServicos.length === 0 && <p className="text-sm text-stone-400 mb-6">Nenhum serviço registrado nesse período</p>}
+      <p className="text-xs font-semibold text-zinc-500 uppercase mb-2 px-1">Serviços mais pedidos no período</p>
+      {rankingServicos.length === 0 && <p className="text-sm text-zinc-500 mb-6">Nenhum serviço registrado nesse período</p>}
       <div className="flex flex-col gap-2">
         {rankingServicos.map(([nome, info]) => (
           <button
             key={nome}
             onClick={() => setServicoSelecionado(nome)}
-            className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3 text-left hover:border-emerald-300 hover:bg-emerald-50/40 transition"
+            className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex items-center gap-3 text-left hover:border-zinc-600 hover:bg-zinc-800/40 transition"
           >
             <span className="flex-1 text-sm font-medium">{nome}</span>
-            <span className="font-num text-sm text-stone-500">{info.qtd}x</span>
-            <span className="font-num text-sm font-semibold text-emerald-700">{money(info.total)}</span>
-            <ChevronRight size={16} className="text-stone-300" />
+            <span className="font-num text-sm text-zinc-400">{info.qtd}x</span>
+            <span className="font-num text-sm font-semibold text-zinc-200">{money(info.total)}</span>
+            <ChevronRight size={16} className="text-zinc-600" />
           </button>
         ))}
       </div>
@@ -754,33 +755,33 @@ function RelatoriosView({ data }) {
 function ServicoDetalheModal({ nome, info, onClose }) {
   const ocorrencias = [...(info?.ocorrencias || [])].sort((a, b) => new Date(b.data) - new Date(a.data));
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 sticky top-0 bg-white">
+    <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-zinc-900 w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-900">
           <h2 className="font-display font-semibold text-base">{nome}</h2>
-          <button onClick={onClose} className="text-stone-400 hover:text-stone-700">
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300">
             <X size={20} />
           </button>
         </div>
         <div className="p-5">
           <div className="grid grid-cols-2 gap-3 mb-5">
-            <div className="bg-stone-50 border border-stone-200 rounded-xl p-3">
-              <p className="text-xs text-stone-500 mb-1">Vezes pedido</p>
+            <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-3">
+              <p className="text-xs text-zinc-400 mb-1">Vezes pedido</p>
               <p className="font-num text-lg font-semibold">{info?.qtd || 0}x</p>
             </div>
-            <div className="bg-stone-50 border border-stone-200 rounded-xl p-3">
-              <p className="text-xs text-stone-500 mb-1">Total gerado</p>
-              <p className="font-num text-lg font-semibold text-emerald-700">{money(info?.total || 0)}</p>
+            <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-3">
+              <p className="text-xs text-zinc-400 mb-1">Total gerado</p>
+              <p className="font-num text-lg font-semibold text-zinc-200">{money(info?.total || 0)}</p>
             </div>
           </div>
 
-          <p className="text-xs font-semibold text-stone-400 uppercase mb-2">Lavagens com esse serviço</p>
+          <p className="text-xs font-semibold text-zinc-500 uppercase mb-2">Lavagens com esse serviço</p>
           <div className="flex flex-col gap-2">
             {ocorrencias.map((o, i) => (
-              <div key={i} className="border border-stone-200 rounded-xl p-3 flex items-center gap-3">
+              <div key={i} className="border border-zinc-800 rounded-xl p-3 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{o.cliente} · {o.placa}</p>
-                  <p className="text-xs text-stone-400">{new Date(o.data).toLocaleDateString("pt-BR")}</p>
+                  <p className="text-xs text-zinc-500">{new Date(o.data).toLocaleDateString("pt-BR")}</p>
                 </div>
                 <span className="font-num text-sm font-semibold">{money(o.valor)}</span>
               </div>
@@ -837,38 +838,38 @@ function EquipeView({ companyId }) {
 
   const pendentes = invites.filter((i) => !i.used_by);
 
-  if (loading) return <div className="p-6 text-stone-400 text-sm">Carregando...</div>;
+  if (loading) return <div className="p-6 text-zinc-500 text-sm">Carregando...</div>;
 
   return (
     <div className="p-4 md:p-6">
       <h1 className="font-display text-xl font-semibold mb-1">Equipe</h1>
-      <p className="text-sm text-stone-500 mb-5">{team.length} pessoa(s) com acesso ao painel</p>
+      <p className="text-sm text-zinc-400 mb-5">{team.length} pessoa(s) com acesso ao painel</p>
 
-      <div className="bg-white border border-stone-200 rounded-xl p-4 mb-5">
-        <p className="text-xs font-semibold text-stone-400 uppercase mb-2">Convidar funcionário</p>
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-5">
+        <p className="text-xs font-semibold text-zinc-500 uppercase mb-2">Convidar funcionário</p>
         <div className="flex flex-col sm:flex-row gap-2">
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="E-mail do funcionário (opcional)"
-            className="flex-1 px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="flex-1 px-3 py-2.5 rounded-lg border border-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-500"
           />
-          <button onClick={gerarConvite} className="flex items-center justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg">
+          <button onClick={gerarConvite} className="flex items-center justify-center gap-1.5 bg-zinc-700 hover:bg-zinc-900 text-white text-sm font-medium px-4 py-2.5 rounded-lg">
             <UserPlus size={15} /> Gerar link de convite
           </button>
         </div>
-        <p className="text-xs text-stone-400 mt-2">Gere o link e envie por WhatsApp, e-mail ou onde preferir. Ele funciona uma única vez.</p>
+        <p className="text-xs text-zinc-500 mt-2">Gere o link e envie por WhatsApp, e-mail ou onde preferir. Ele funciona uma única vez.</p>
       </div>
 
       {pendentes.length > 0 && (
         <div className="mb-5">
-          <p className="text-xs font-semibold text-stone-400 uppercase mb-2 px-1">Convites pendentes</p>
+          <p className="text-xs font-semibold text-zinc-500 uppercase mb-2 px-1">Convites pendentes</p>
           <div className="flex flex-col gap-2">
             {pendentes.map((inv) => (
-              <div key={inv.id} className="border border-amber-200 bg-amber-50 rounded-xl p-3 flex items-center gap-3">
-                <Mail size={16} className="text-amber-600 shrink-0" />
-                <span className="flex-1 text-sm text-amber-900">{inv.email || "Convite sem e-mail definido"}</span>
-                <button onClick={() => copiarLink(inv)} className="flex items-center gap-1 text-xs font-medium bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg">
+              <div key={inv.id} className="border border-amber-800 bg-amber-950 rounded-xl p-3 flex items-center gap-3">
+                <Mail size={16} className="text-amber-500 shrink-0" />
+                <span className="flex-1 text-sm text-amber-200">{inv.email || "Convite sem e-mail definido"}</span>
+                <button onClick={() => copiarLink(inv)} className="flex items-center gap-1 text-xs font-medium bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded-lg">
                   <Copy size={12} /> {copiedId === inv.id ? "Copiado!" : "Copiar link"}
                 </button>
               </div>
@@ -877,18 +878,18 @@ function EquipeView({ companyId }) {
         </div>
       )}
 
-      <p className="text-xs font-semibold text-stone-400 uppercase mb-2 px-1">Membros da equipe</p>
+      <p className="text-xs font-semibold text-zinc-500 uppercase mb-2 px-1">Membros da equipe</p>
       <div className="flex flex-col gap-2">
         {team.map((p) => (
-          <div key={p.id} className={`bg-white border rounded-xl p-3 flex items-center gap-3 ${p.blocked ? "border-rose-200 bg-rose-50/40" : "border-stone-200"}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${p.blocked ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-800"}`}>
+          <div key={p.id} className={`bg-zinc-900 border rounded-xl p-3 flex items-center gap-3 ${p.blocked ? "border-rose-800 bg-rose-950/40" : "border-zinc-800"}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${p.blocked ? "bg-rose-950 text-rose-400" : "bg-zinc-800 text-zinc-100"}`}>
               {(p.full_name || "?").slice(0, 1).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{p.full_name || "Sem nome"}</p>
-              <span className="text-xs text-stone-400 capitalize">
+              <span className="text-xs text-zinc-500 capitalize">
                 {p.role === "owner" ? "dono" : "funcionário"}
-                {p.blocked && <span className="text-rose-600 font-medium"> · bloqueado</span>}
+                {p.blocked && <span className="text-rose-400 font-medium"> · bloqueado</span>}
               </span>
             </div>
             {p.role !== "owner" && (
@@ -896,7 +897,7 @@ function EquipeView({ companyId }) {
                 <button
                   onClick={() => alternarBloqueio(p)}
                   title={p.blocked ? "Desbloquear acesso" : "Bloquear acesso"}
-                  className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg ${p.blocked ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200" : "bg-amber-100 text-amber-800 hover:bg-amber-200"}`}
+                  className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg ${p.blocked ? "bg-zinc-800 text-zinc-100 hover:bg-zinc-700" : "bg-amber-950 text-amber-300 hover:bg-amber-800"}`}
                 >
                   {p.blocked ? <ShieldCheck size={13} /> : <ShieldOff size={13} />}
                   {p.blocked ? "Desbloquear" : "Bloquear"}
@@ -904,7 +905,7 @@ function EquipeView({ companyId }) {
                 <button
                   onClick={() => removerMembro(p)}
                   title="Remover da equipe"
-                  className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-stone-100 text-stone-600 hover:bg-rose-100 hover:text-rose-700"
+                  className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:bg-rose-950 hover:text-rose-400"
                 >
                   <UserX size={13} />
                 </button>
@@ -919,11 +920,11 @@ function EquipeView({ companyId }) {
 
 function ModalShell({ title, onClose, children }) {
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 sticky top-0 bg-white">
+    <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-zinc-900 w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-900">
           <h2 className="font-display font-semibold text-base">{title}</h2>
-          <button onClick={onClose} className="text-stone-400 hover:text-stone-700">
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300">
             <X size={20} />
           </button>
         </div>
@@ -965,11 +966,11 @@ function NovoClienteModal({ data, companyId, refetch, close }) {
       <div className="flex flex-col gap-3">
         <Field label="Nome"><input value={name} onChange={(e) => setName(e.target.value)} className="input" /></Field>
         <Field label="Telefone"><input value={phone} onChange={(e) => setPhone(e.target.value)} className="input" /></Field>
-        <p className="text-xs font-semibold text-stone-400 uppercase mt-2">Veículo (opcional)</p>
+        <p className="text-xs font-semibold text-zinc-500 uppercase mt-2">Veículo (opcional)</p>
         <Field label="Placa"><input value={plate} onChange={(e) => setPlate(e.target.value)} className="input" /></Field>
         <Field label="Modelo"><input value={model} onChange={(e) => setModel(e.target.value)} className="input" /></Field>
         <Field label="Cor"><input value={color} onChange={(e) => setColor(e.target.value)} className="input" /></Field>
-        <button onClick={save} className="mt-2 bg-emerald-700 hover:bg-emerald-800 text-white font-medium text-sm py-3 rounded-xl">Salvar cliente</button>
+        <button onClick={save} className="mt-2 bg-zinc-700 hover:bg-zinc-900 text-white font-medium text-sm py-3 rounded-xl">Salvar cliente</button>
       </div>
     </ModalShell>
   );
@@ -993,7 +994,7 @@ function NovoVeiculoModal({ companyId, refetch, close, customerId }) {
         <Field label="Placa"><input value={plate} onChange={(e) => setPlate(e.target.value)} className="input" /></Field>
         <Field label="Modelo"><input value={model} onChange={(e) => setModel(e.target.value)} className="input" /></Field>
         <Field label="Cor"><input value={color} onChange={(e) => setColor(e.target.value)} className="input" /></Field>
-        <button onClick={save} className="mt-2 bg-emerald-700 hover:bg-emerald-800 text-white font-medium text-sm py-3 rounded-xl">Salvar veículo</button>
+        <button onClick={save} className="mt-2 bg-zinc-700 hover:bg-zinc-900 text-white font-medium text-sm py-3 rounded-xl">Salvar veículo</button>
       </div>
     </ModalShell>
   );
@@ -1071,8 +1072,8 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode }) {
       <div className="flex flex-col gap-3">
         {data.customers.length > 0 && (
           <div className="flex gap-2 mb-1">
-            <button onClick={() => setNewCustomerMode(false)} className={`flex-1 text-xs font-medium py-2 rounded-lg ${!newCustomerMode ? "bg-emerald-700 text-white" : "bg-stone-100 text-stone-600"}`}>Cliente existente</button>
-            <button onClick={() => setNewCustomerMode(true)} className={`flex-1 text-xs font-medium py-2 rounded-lg ${newCustomerMode ? "bg-emerald-700 text-white" : "bg-stone-100 text-stone-600"}`}>Novo cliente</button>
+            <button onClick={() => setNewCustomerMode(false)} className={`flex-1 text-xs font-medium py-2 rounded-lg ${!newCustomerMode ? "bg-zinc-700 text-white" : "bg-zinc-800 text-zinc-400"}`}>Cliente existente</button>
+            <button onClick={() => setNewCustomerMode(true)} className={`flex-1 text-xs font-medium py-2 rounded-lg ${newCustomerMode ? "bg-zinc-700 text-white" : "bg-zinc-800 text-zinc-400"}`}>Novo cliente</button>
           </div>
         )}
 
@@ -1092,7 +1093,7 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode }) {
                 </select>
               </Field>
             )}
-            {customer && customer.vehicles.length === 0 && <p className="text-xs text-amber-600">Este cliente não tem veículo cadastrado. Adicione um na aba Clientes.</p>}
+            {customer && customer.vehicles.length === 0 && <p className="text-xs text-amber-500">Este cliente não tem veículo cadastrado. Adicione um na aba Clientes.</p>}
           </>
         )}
 
@@ -1115,24 +1116,24 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode }) {
           </div>
         )}
 
-        <p className="text-xs font-semibold text-stone-400 uppercase mt-2">Serviços</p>
+        <p className="text-xs font-semibold text-zinc-500 uppercase mt-2">Serviços</p>
         <div className="flex flex-col gap-1.5">
           {data.services.map((s) => (
-            <label key={s.id} className="flex items-center gap-2 border border-stone-200 rounded-lg px-3 py-2 cursor-pointer">
+            <label key={s.id} className="flex items-center gap-2 border border-zinc-800 rounded-lg px-3 py-2 cursor-pointer">
               <input type="checkbox" checked={serviceIds.includes(s.id)} onChange={() => toggleService(s.id)} />
               <span className="flex-1 text-sm">{s.name}</span>
-              <span className="font-num text-sm text-stone-500">{money(s.price)}</span>
+              <span className="font-num text-sm text-zinc-400">{money(s.price)}</span>
             </label>
           ))}
         </div>
 
-        <p className="text-xs font-semibold text-stone-400 uppercase mt-2">Serviço avulso</p>
-        <p className="text-xs text-stone-400 -mt-2">Use para um serviço fora da lista, com valor livre</p>
+        <p className="text-xs font-semibold text-zinc-500 uppercase mt-2">Serviço avulso</p>
+        <p className="text-xs text-zinc-500 -mt-2">Use para um serviço fora da lista, com valor livre</p>
         <div className="flex flex-col gap-2">
           <input value={extraName} onChange={(e) => setExtraName(e.target.value)} placeholder="Descrição do serviço" className="input" />
           <div className="flex gap-2">
             <input value={extraPrice} onChange={(e) => setExtraPrice(e.target.value)} type="number" placeholder="Valor (R$)" className="input flex-1" />
-            <button onClick={addExtraService} type="button" className="shrink-0 bg-stone-700 hover:bg-stone-800 text-white rounded-lg px-4">
+            <button onClick={addExtraService} type="button" className="shrink-0 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg px-4">
               <Plus size={16} />
             </button>
           </div>
@@ -1140,10 +1141,10 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode }) {
         {extraServices.length > 0 && (
           <div className="flex flex-col gap-1.5">
             {extraServices.map((e) => (
-              <div key={e.id} className="flex items-center gap-2 border border-amber-200 bg-amber-50 rounded-lg px-3 py-2.5">
-                <span className="flex-1 text-sm font-semibold text-amber-900">{e.name}</span>
-                <span className="font-num text-sm font-semibold text-amber-700">{money(e.price)}</span>
-                <button onClick={() => removeExtraService(e.id)} className="text-amber-400 hover:text-rose-500">
+              <div key={e.id} className="flex items-center gap-2 border border-amber-800 bg-amber-950 rounded-lg px-3 py-2.5">
+                <span className="flex-1 text-sm font-semibold text-amber-200">{e.name}</span>
+                <span className="font-num text-sm font-semibold text-amber-300">{money(e.price)}</span>
+                <button onClick={() => removeExtraService(e.id)} className="text-amber-500 hover:text-rose-400">
                   <X size={14} />
                 </button>
               </div>
@@ -1151,12 +1152,12 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode }) {
           </div>
         )}
 
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-stone-100">
-          <span className="text-sm text-stone-500">Total</span>
-          <span className="font-num text-lg font-semibold text-emerald-700">{money(total)}</span>
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800">
+          <span className="text-sm text-zinc-400">Total</span>
+          <span className="font-num text-lg font-semibold text-zinc-200">{money(total)}</span>
         </div>
 
-        <button onClick={save} className="mt-2 bg-orange-500 hover:bg-orange-600 text-white font-medium text-sm py-3 rounded-xl">
+        <button onClick={save} className="mt-2 bg-zinc-600 hover:bg-zinc-500 text-white font-medium text-sm py-3 rounded-xl">
           {mode === "queue" ? "Adicionar à fila" : "Salvar agendamento"}
         </button>
       </div>
@@ -1167,7 +1168,7 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode }) {
 function Field({ label, children }) {
   return (
     <div>
-      <label className="text-xs font-medium text-stone-500 mb-1 block">{label}</label>
+      <label className="text-xs font-medium text-zinc-400 mb-1 block">{label}</label>
       {children}
     </div>
   );
