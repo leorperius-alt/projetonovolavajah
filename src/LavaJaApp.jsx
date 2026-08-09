@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   Car, CalendarClock, Users, Wrench, Wallet, Plus, X, Check, Phone, Trash2, Clock,
   Search, Droplets, CheckCircle2, PlayCircle, LogIn, Banknote, LogOut, UserPlus, Copy, Mail,
-  TrendingDown, FileBarChart, Download,
+  TrendingDown, FileBarChart, Download, ChevronRight, ShieldOff, ShieldCheck, UserX,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./lib/db";
@@ -22,6 +22,8 @@ export default function LavaJaApp({ onLogout }) {
   const [companyId, setCompanyId] = useState(null);
   const [companyName, setCompanyName] = useState("");
   const [myRole, setMyRole] = useState(null);
+  const [myUserId, setMyUserId] = useState(null);
+  const [blocked, setBlocked] = useState(false);
   const [data, setData] = useState({ customers: [], services: [], orders: [] });
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("fila");
@@ -47,7 +49,15 @@ export default function LavaJaApp({ onLogout }) {
 
   useEffect(() => {
     (async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      setMyUserId(auth?.user?.id || null);
+
       const profile = await loadProfileWithRetry();
+      if (profile?.blocked) {
+        setBlocked(true);
+        setLoading(false);
+        return;
+      }
       const cid = profile?.company_id || null;
       setCompanyId(cid);
       setMyRole(profile?.role || null);
@@ -62,6 +72,14 @@ export default function LavaJaApp({ onLogout }) {
   }, []);
 
   useEffect(() => {
+    if (!myUserId) return;
+    const unsubscribe = db.subscribeToMyProfile(myUserId, (payload) => {
+      if (payload.new?.blocked) setBlocked(true);
+    });
+    return unsubscribe;
+  }, [myUserId]);
+
+  useEffect(() => {
     if (!companyId) return;
     const unsubscribe = db.subscribeToChanges(companyId, () => refetch(companyId));
     return unsubscribe;
@@ -69,6 +87,18 @@ export default function LavaJaApp({ onLogout }) {
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center text-stone-400">Carregando...</div>;
+  }
+
+  if (blocked) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 text-center px-4">
+        <p className="text-stone-700 font-medium">Seu acesso foi bloqueado.</p>
+        <p className="text-sm text-stone-500 max-w-sm">Fale com o responsável da empresa se achar que isso é um engano.</p>
+        <button onClick={onLogout} className="mt-2 bg-stone-700 hover:bg-stone-800 text-white text-sm font-medium px-4 py-2.5 rounded-xl">
+          Sair
+        </button>
+      </div>
+    );
   }
 
   if (!companyId) {
@@ -577,6 +607,7 @@ function RelatoriosView({ data }) {
     return d.toISOString().slice(0, 10);
   });
   const [end, setEnd] = useState(todayStr());
+  const [servicoSelecionado, setServicoSelecionado] = useState(null);
 
   const ordersInRange = data.orders.filter((o) => {
     if (o.status !== "entregue") return false;
@@ -592,17 +623,31 @@ function RelatoriosView({ data }) {
   const ticketMedio = ordersInRange.length ? totalFaturado / ordersInRange.length : 0;
 
   const porServico = {};
+  const registrarOcorrencia = (nome, valor, order) => {
+    const customer = data.customers.find((c) => c.id === order.customer_id);
+    const vehicle = customer?.vehicles.find((v) => v.id === order.vehicle_id);
+    if (!porServico[nome]) porServico[nome] = { qtd: 0, total: 0, ocorrencias: [] };
+    porServico[nome].qtd += 1;
+    porServico[nome].total += valor;
+    porServico[nome].ocorrencias.push({
+      data: order.created_at,
+      cliente: customer?.name || "—",
+      placa: vehicle?.plate || "—",
+      valor,
+      pago: order.paid,
+    });
+  };
   ordersInRange.forEach((o) => {
     (o.service_ids || []).forEach((id) => {
       const s = data.services.find((sv) => sv.id === id);
       if (!s) return;
-      porServico[s.name] = (porServico[s.name] || 0) + 1;
+      registrarOcorrencia(s.name, s.price, o);
     });
     (o.extra_services || []).forEach((e) => {
-      porServico[e.name] = (porServico[e.name] || 0) + 1;
+      registrarOcorrencia(e.name, e.price, o);
     });
   });
-  const rankingServicos = Object.entries(porServico).sort((a, b) => b[1] - a[1]);
+  const rankingServicos = Object.entries(porServico).sort((a, b) => b[1].qtd - a[1].qtd);
 
   const baixarCsv = () => {
     const linhas = [["Data", "Cliente", "Placa", "Serviços", "Total", "Status pagamento"]];
@@ -681,12 +726,67 @@ function RelatoriosView({ data }) {
       <p className="text-xs font-semibold text-stone-400 uppercase mb-2 px-1">Serviços mais pedidos no período</p>
       {rankingServicos.length === 0 && <p className="text-sm text-stone-400 mb-6">Nenhum serviço registrado nesse período</p>}
       <div className="flex flex-col gap-2">
-        {rankingServicos.map(([nome, qtd]) => (
-          <div key={nome} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3">
+        {rankingServicos.map(([nome, info]) => (
+          <button
+            key={nome}
+            onClick={() => setServicoSelecionado(nome)}
+            className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3 text-left hover:border-emerald-300 hover:bg-emerald-50/40 transition"
+          >
             <span className="flex-1 text-sm font-medium">{nome}</span>
-            <span className="font-num text-sm text-stone-500">{qtd}x</span>
-          </div>
+            <span className="font-num text-sm text-stone-500">{info.qtd}x</span>
+            <span className="font-num text-sm font-semibold text-emerald-700">{money(info.total)}</span>
+            <ChevronRight size={16} className="text-stone-300" />
+          </button>
         ))}
+      </div>
+
+      {servicoSelecionado && (
+        <ServicoDetalheModal
+          nome={servicoSelecionado}
+          info={porServico[servicoSelecionado]}
+          onClose={() => setServicoSelecionado(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ServicoDetalheModal({ nome, info, onClose }) {
+  const ocorrencias = [...(info?.ocorrencias || [])].sort((a, b) => new Date(b.data) - new Date(a.data));
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 sticky top-0 bg-white">
+          <h2 className="font-display font-semibold text-base">{nome}</h2>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-700">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="p-5">
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            <div className="bg-stone-50 border border-stone-200 rounded-xl p-3">
+              <p className="text-xs text-stone-500 mb-1">Vezes pedido</p>
+              <p className="font-num text-lg font-semibold">{info?.qtd || 0}x</p>
+            </div>
+            <div className="bg-stone-50 border border-stone-200 rounded-xl p-3">
+              <p className="text-xs text-stone-500 mb-1">Total gerado</p>
+              <p className="font-num text-lg font-semibold text-emerald-700">{money(info?.total || 0)}</p>
+            </div>
+          </div>
+
+          <p className="text-xs font-semibold text-stone-400 uppercase mb-2">Lavagens com esse serviço</p>
+          <div className="flex flex-col gap-2">
+            {ocorrencias.map((o, i) => (
+              <div key={i} className="border border-stone-200 rounded-xl p-3 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{o.cliente} · {o.placa}</p>
+                  <p className="text-xs text-stone-400">{new Date(o.data).toLocaleDateString("pt-BR")}</p>
+                </div>
+                <span className="font-num text-sm font-semibold">{money(o.valor)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -721,6 +821,18 @@ function EquipeView({ companyId }) {
     navigator.clipboard?.writeText(link);
     setCopiedId(invite.id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const alternarBloqueio = async (membro) => {
+    await db.setMemberBlocked(membro.id, !membro.blocked);
+    load();
+  };
+
+  const removerMembro = async (membro) => {
+    const confirmado = window.confirm(`Remover ${membro.full_name || "esse funcionário"} da equipe? Ele perde o acesso imediatamente e precisaria de um novo convite pra voltar.`);
+    if (!confirmado) return;
+    await db.removeMember(membro.id);
+    load();
   };
 
   const pendentes = invites.filter((i) => !i.used_by);
@@ -768,12 +880,36 @@ function EquipeView({ companyId }) {
       <p className="text-xs font-semibold text-stone-400 uppercase mb-2 px-1">Membros da equipe</p>
       <div className="flex flex-col gap-2">
         {team.map((p) => (
-          <div key={p.id} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-xs font-semibold shrink-0">
+          <div key={p.id} className={`bg-white border rounded-xl p-3 flex items-center gap-3 ${p.blocked ? "border-rose-200 bg-rose-50/40" : "border-stone-200"}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${p.blocked ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-800"}`}>
               {(p.full_name || "?").slice(0, 1).toUpperCase()}
             </div>
-            <span className="flex-1 text-sm font-medium">{p.full_name || "Sem nome"}</span>
-            <span className="text-xs text-stone-400 capitalize">{p.role === "owner" ? "dono" : "funcionário"}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{p.full_name || "Sem nome"}</p>
+              <span className="text-xs text-stone-400 capitalize">
+                {p.role === "owner" ? "dono" : "funcionário"}
+                {p.blocked && <span className="text-rose-600 font-medium"> · bloqueado</span>}
+              </span>
+            </div>
+            {p.role !== "owner" && (
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => alternarBloqueio(p)}
+                  title={p.blocked ? "Desbloquear acesso" : "Bloquear acesso"}
+                  className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg ${p.blocked ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200" : "bg-amber-100 text-amber-800 hover:bg-amber-200"}`}
+                >
+                  {p.blocked ? <ShieldCheck size={13} /> : <ShieldOff size={13} />}
+                  {p.blocked ? "Desbloquear" : "Bloquear"}
+                </button>
+                <button
+                  onClick={() => removerMembro(p)}
+                  title="Remover da equipe"
+                  className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-stone-100 text-stone-600 hover:bg-rose-100 hover:text-rose-700"
+                >
+                  <UserX size={13} />
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>
