@@ -17,11 +17,19 @@ export async function getMyProfile() {
   if (!auth?.user) return null;
   const { data, error } = await supabase
     .from("profiles")
-    .select("company_id, role, full_name")
+    .select("company_id, role, full_name, blocked")
     .eq("id", auth.user.id)
     .single();
   if (error) return null;
   return data;
+}
+
+export function subscribeToMyProfile(userId, onChange) {
+  const channel = supabase
+    .channel(`profile-${userId}`)
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${userId}` }, onChange)
+    .subscribe();
+  return () => supabase.removeChannel(channel);
 }
 
 export async function fetchAll(companyId) {
@@ -124,11 +132,21 @@ export async function togglePaid(id, paid) {
 export async function fetchTeam(companyId) {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, role, created_at")
+    .select("id, full_name, role, blocked, created_at")
     .eq("company_id", companyId)
     .order("created_at");
   if (error) throw error;
   return data || [];
+}
+
+export async function setMemberBlocked(id, blocked) {
+  const { error } = await supabase.from("profiles").update({ blocked }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function removeMember(id) {
+  const { error } = await supabase.from("profiles").delete().eq("id", id);
+  if (error) throw error;
 }
 
 export async function fetchInvites(companyId) {
