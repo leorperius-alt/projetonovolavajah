@@ -49,7 +49,7 @@ export default function App() {
   }
 
   if (session === undefined) {
-    return <div className="min-h-screen flex items-center justify-center text-stone-400">Carregando...</div>;
+    return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-500">Carregando...</div>;
   }
 
   if (!session) {
