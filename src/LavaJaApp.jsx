@@ -3,7 +3,7 @@ import {
   Car, CalendarClock, Users, Wrench, Wallet, Plus, X, Check, Phone, Trash2, Clock,
   Search, Droplets, CheckCircle2, PlayCircle, LogIn, Banknote, LogOut, UserPlus, Copy, Mail,
   TrendingDown, FileBarChart, Download, ChevronRight, ShieldOff, ShieldCheck, UserX,
-  Package, ArrowDownCircle, ArrowUpCircle, History, AlertTriangle,
+  Package, ArrowDownCircle, ArrowUpCircle, History, AlertTriangle, MessageCircle,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./lib/db";
@@ -11,6 +11,13 @@ import * as db from "./lib/db";
 const genLocalId = () => Math.random().toString(36).slice(2, 9);
 const money = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const todayStr = () => new Date().toISOString().slice(0, 10);
+
+const waLink = (phone, message) => {
+  let digits = (phone || "").replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.length <= 11) digits = "55" + digits; // assume BR se não veio com país
+  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+};
 const dateStrOf = (iso) => (iso ? iso.slice(0, 10) : "");
 const timeAgo = (iso) => {
   const mins = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
@@ -25,7 +32,7 @@ export default function LavaJaApp({ onLogout }) {
   const [myRole, setMyRole] = useState(null);
   const [myUserId, setMyUserId] = useState(null);
   const [blocked, setBlocked] = useState(false);
-  const [data, setData] = useState({ customers: [], services: [], orders: [], expenses: [], products: [] });
+  const [data, setData] = useState({ customers: [], services: [], orders: [], expenses: [], products: [], serviceProducts: [] });
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("fila");
   const [modal, setModal] = useState(null);
@@ -173,10 +180,10 @@ export default function LavaJaApp({ onLogout }) {
       </div>
 
       <div className="flex-1 overflow-y-auto pb-20 md:pb-0">
-        {activeTab === "fila" && <FilaView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
+        {activeTab === "fila" && <FilaView data={data} companyId={companyId} companyName={companyName} refetch={refetch} setModal={setModal} />}
         {activeTab === "agenda" && <AgendaView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "clientes" && <ClientesView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
-        {activeTab === "servicos" && <ServicosView data={data} companyId={companyId} refetch={refetch} />}
+        {activeTab === "servicos" && <ServicosView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "estoque" && <EstoqueView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "financeiro" && isOwner && <FinanceiroView data={data} companyId={companyId} refetch={refetch} />}
         {activeTab === "relatorios" && isOwner && <RelatoriosView data={data} />}
@@ -218,7 +225,7 @@ function OrderServicesLine({ data, order }) {
   return <p className="text-xs text-zinc-300 truncate">{[...names, ...extraNames].join(", ")}</p>;
 }
 
-function FilaView({ data, refetch, setModal }) {
+function FilaView({ data, companyName, refetch, setModal }) {
   const active = data.orders.filter((o) => ["aguardando", "lavando", "pronto"].includes(o.status));
   const advance = async (order, status) => {
     await db.updateOrderStatus(order.id, status);
@@ -254,33 +261,53 @@ function FilaView({ data, refetch, setModal }) {
               </div>
               <div className="flex flex-col gap-2 min-h-[80px]">
                 {items.length === 0 && <p className="text-xs text-zinc-400 px-1 py-4 text-center">Nenhum carro aqui</p>}
-                {items.map((order) => (
-                  <div key={order.id} className="border border-zinc-700 rounded-xl p-3 bg-zinc-900">
-                    <OrderCustomerLine data={data} order={order} />
-                    <OrderServicesLine data={data} order={order} />
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-xs text-zinc-400">há {timeAgo(order.created_at)}</span>
-                      <span className="font-num text-sm font-semibold text-zinc-200">{money(order.total)}</span>
+                {items.map((order) => {
+                  const customer = data.customers.find((c) => c.id === order.customer_id);
+                  const vehicle = customer?.vehicles.find((v) => v.id === order.vehicle_id);
+                  const mensagem = `Olá${customer?.name ? ", " + customer.name.split(" ")[0] : ""}! Seu veículo${vehicle?.plate ? ` (${vehicle.plate})` : ""} já está pronto na ${companyName || "lavagem"}. Pode vir buscar quando quiser! 🚗✨`;
+                  const link = waLink(customer?.phone, mensagem);
+                  return (
+                    <div key={order.id} className="border border-zinc-700 rounded-xl p-3 bg-zinc-900">
+                      <OrderCustomerLine data={data} order={order} />
+                      <OrderServicesLine data={data} order={order} />
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-xs text-zinc-400">há {timeAgo(order.created_at)}</span>
+                        <span className="font-num text-sm font-semibold text-zinc-200">{money(order.total)}</span>
+                      </div>
+                      <div className="mt-2 flex flex-col gap-1.5">
+                        {col.key === "aguardando" && (
+                          <button onClick={() => advance(order, "lavando")} className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-sky-600 hover:bg-sky-700 text-white rounded-lg py-2">
+                            <PlayCircle size={14} /> Iniciar lavagem
+                          </button>
+                        )}
+                        {col.key === "lavando" && (
+                          <button onClick={() => advance(order, "pronto")} className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-zinc-500 hover:bg-zinc-600 text-white rounded-lg py-2">
+                            <CheckCircle2 size={14} /> Marcar pronto
+                          </button>
+                        )}
+                        {col.key === "pronto" && (
+                          <>
+                            {link ? (
+                              <a
+                                href={link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg py-2"
+                              >
+                                <MessageCircle size={14} /> Avisar no WhatsApp
+                              </a>
+                            ) : (
+                              <p className="text-[11px] text-zinc-500 text-center">Cliente sem telefone cadastrado</p>
+                            )}
+                            <button onClick={() => advance(order, "entregue")} className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-zinc-600 hover:bg-zinc-500 text-white rounded-lg py-2">
+                              <Check size={14} /> Entregar
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="mt-2">
-                      {col.key === "aguardando" && (
-                        <button onClick={() => advance(order, "lavando")} className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-sky-600 hover:bg-sky-700 text-white rounded-lg py-2">
-                          <PlayCircle size={14} /> Iniciar lavagem
-                        </button>
-                      )}
-                      {col.key === "lavando" && (
-                        <button onClick={() => advance(order, "pronto")} className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-zinc-500 hover:bg-zinc-600 text-white rounded-lg py-2">
-                          <CheckCircle2 size={14} /> Marcar pronto
-                        </button>
-                      )}
-                      {col.key === "pronto" && (
-                        <button onClick={() => advance(order, "entregue")} className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-zinc-600 hover:bg-zinc-500 text-white rounded-lg py-2">
-                          <Check size={14} /> Entregar
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           );
@@ -297,6 +324,7 @@ function AgendaView({ data, refetch, setModal }) {
 
   const checkIn = async (order) => {
     await db.updateOrderStatus(order.id, "aguardando", { created_at: new Date().toISOString() });
+    await db.consumeStockForOrder(order.service_ids, data.serviceProducts, "Consumo automático — check-in de agendamento");
     refetch();
   };
 
@@ -417,7 +445,7 @@ function ClientesView({ data, companyId, refetch, setModal }) {
   );
 }
 
-function ServicosView({ data, companyId, refetch }) {
+function ServicosView({ data, companyId, refetch, setModal }) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
 
@@ -445,27 +473,47 @@ function ServicosView({ data, companyId, refetch }) {
       <p className="text-sm text-zinc-300 mb-5">{data.services.length} serviço(s) cadastrado(s)</p>
 
       <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4 mb-5 flex flex-col sm:flex-row gap-2">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do serviço" className="flex-1 px-3 py-2.5 rounded-lg border border-zinc-700 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
-        <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" placeholder="Preço" className="w-full sm:w-32 px-3 py-2.5 rounded-lg border border-zinc-700 text-sm font-num focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do serviço" className="flex-1 px-3 py-2.5 rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+        <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" placeholder="Preço" className="w-full sm:w-32 px-3 py-2.5 rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-100 text-sm font-num focus:outline-none focus:ring-2 focus:ring-zinc-400" />
         <button onClick={add} className="flex items-center justify-center gap-1.5 bg-zinc-600 hover:bg-zinc-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg">
           <Plus size={15} /> Adicionar
         </button>
       </div>
 
       <div className="flex flex-col gap-2">
-        {data.services.map((s) => (
-          <div key={s.id} className="bg-zinc-800 border border-zinc-700 rounded-xl p-3 flex items-center gap-3">
-            <Wrench size={16} className="text-zinc-400 shrink-0" />
-            <span className="flex-1 text-sm font-medium">{s.name}</span>
-            <div className="flex items-center gap-1 font-num text-sm">
-              <span className="text-zinc-400">R$</span>
-              <input defaultValue={s.price} onBlur={(e) => updatePrice(s.id, e.target.value)} type="number" className="w-20 px-2 py-1 rounded-lg border border-zinc-700 text-right focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+        {data.services.map((s) => {
+          const vinculos = data.serviceProducts.filter((sp) => sp.service_id === s.id);
+          return (
+            <div key={s.id} className="bg-zinc-800 border border-zinc-700 rounded-xl p-3 flex items-center gap-3">
+              <Wrench size={16} className="text-zinc-400 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium">{s.name}</span>
+                {vinculos.length > 0 && (
+                  <p className="text-xs text-zinc-500 truncate">
+                    Consome: {vinculos.map((v) => {
+                      const p = data.products.find((pr) => pr.id === v.product_id);
+                      return p ? `${v.quantity} ${p.unit} de ${p.name}` : null;
+                    }).filter(Boolean).join(", ")}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-1 font-num text-sm">
+                <span className="text-zinc-400">R$</span>
+                <input defaultValue={s.price} onBlur={(e) => updatePrice(s.id, e.target.value)} type="number" className="w-20 px-2 py-1 rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-100 text-right focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+              </div>
+              <button
+                onClick={() => setModal({ type: "vincularProdutos", servico: s })}
+                title="Vincular produtos do estoque"
+                className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
+              >
+                <Package size={15} />
+              </button>
+              <button onClick={() => remove(s.id)} className="text-zinc-500 hover:text-rose-400">
+                <Trash2 size={15} />
+              </button>
             </div>
-            <button onClick={() => remove(s.id)} className="text-zinc-500 hover:text-rose-400">
-              <Trash2 size={15} />
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -913,7 +961,7 @@ function MovimentoEstoqueModal({ companyId, refetch, close, produto, tipo }) {
   const save = async () => {
     const qtd = Number(quantity);
     if (!qtd || qtd <= 0) return;
-    await db.registerMovement(companyId, produto, tipo, qtd, note.trim());
+    await db.registerMovement(produto.id, tipo, qtd, note.trim());
     refetch();
     close();
   };
@@ -967,6 +1015,73 @@ function HistoricoEstoqueModal({ produto, close }) {
             <span className="text-xs text-zinc-500 shrink-0">{new Date(m.created_at).toLocaleDateString("pt-BR")}</span>
           </div>
         ))}
+      </div>
+    </ModalShell>
+  );
+}
+
+function VincularProdutosModal({ data, companyId, refetch, close, servico }) {
+  const [productId, setProductId] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  const vinculos = data.serviceProducts.filter((sp) => sp.service_id === servico.id);
+
+  const add = async () => {
+    if (!productId || !quantity) return;
+    await db.addServiceProduct(companyId, servico.id, productId, Number(quantity));
+    setProductId("");
+    setQuantity("1");
+    refetch();
+  };
+
+  const remove = async (id) => {
+    await db.removeServiceProduct(id);
+    refetch();
+  };
+
+  return (
+    <ModalShell title={`Produtos usados — ${servico.name}`} onClose={close}>
+      <div className="flex flex-col gap-3">
+        <p className="text-xs text-zinc-400">
+          Toda vez que esse serviço for usado num carro da fila, os produtos abaixo são descontados do estoque automaticamente.
+        </p>
+
+        {data.products.length === 0 && (
+          <p className="text-sm text-amber-300 bg-amber-950 border border-amber-800 rounded-lg p-3">
+            Você ainda não tem produtos cadastrados no Estoque. Cadastre lá primeiro pra poder vincular aqui.
+          </p>
+        )}
+
+        {data.products.length > 0 && (
+          <div className="flex gap-2">
+            <select value={productId} onChange={(e) => setProductId(e.target.value)} className="input flex-1">
+              <option value="">Selecione um produto</option>
+              {data.products.map((p) => (
+                <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>
+              ))}
+            </select>
+            <input value={quantity} onChange={(e) => setQuantity(e.target.value)} type="number" step="any" className="input w-20" />
+            <button onClick={add} className="shrink-0 bg-zinc-600 hover:bg-zinc-500 text-white rounded-lg px-3">
+              <Plus size={16} />
+            </button>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-2 mt-1">
+          {vinculos.length === 0 && <p className="text-sm text-zinc-500">Nenhum produto vinculado ainda.</p>}
+          {vinculos.map((v) => {
+            const p = data.products.find((pr) => pr.id === v.product_id);
+            return (
+              <div key={v.id} className="border border-zinc-700 rounded-xl p-3 flex items-center gap-3">
+                <Package size={15} className="text-zinc-400 shrink-0" />
+                <span className="flex-1 text-sm">{p ? p.name : "Produto removido"}</span>
+                <span className="font-num text-sm text-zinc-400">{v.quantity} {p?.unit || ""}</span>
+                <button onClick={() => remove(v.id)} className="text-zinc-500 hover:text-rose-400">
+                  <X size={15} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </ModalShell>
   );
@@ -1122,6 +1237,7 @@ function ModalRouter({ modal, setModal, data, companyId, refetch }) {
   if (modal.type === "novoProduto") return <NovoProdutoModal companyId={companyId} refetch={refetch} close={close} />;
   if (modal.type === "movimentoEstoque") return <MovimentoEstoqueModal companyId={companyId} refetch={refetch} close={close} produto={modal.produto} tipo={modal.tipo} />;
   if (modal.type === "historicoEstoque") return <HistoricoEstoqueModal produto={modal.produto} close={close} />;
+  if (modal.type === "vincularProdutos") return <VincularProdutosModal data={data} companyId={companyId} refetch={refetch} close={close} servico={modal.servico} />;
   return null;
 }
 
@@ -1244,6 +1360,10 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode }) {
       status: mode === "queue" ? "aguardando" : "agendado",
       scheduled_time: mode === "schedule" ? new Date(`${date}T${time}:00`).toISOString() : null,
     });
+
+    if (mode === "queue") {
+      await db.consumeStockForOrder(serviceIds, data.serviceProducts, "Consumo automático — carro na fila");
+    }
 
     refetch();
     close();
