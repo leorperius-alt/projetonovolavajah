@@ -3,6 +3,7 @@ import {
   Car, CalendarClock, Users, Wrench, Wallet, Plus, X, Check, Phone, Trash2, Clock,
   Search, Droplets, CheckCircle2, PlayCircle, LogIn, Banknote, LogOut, UserPlus, Copy, Mail,
   TrendingDown, FileBarChart, Download, ChevronRight, ShieldOff, ShieldCheck, UserX,
+  Package, ArrowDownCircle, ArrowUpCircle, History, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./lib/db";
@@ -24,7 +25,7 @@ export default function LavaJaApp({ onLogout }) {
   const [myRole, setMyRole] = useState(null);
   const [myUserId, setMyUserId] = useState(null);
   const [blocked, setBlocked] = useState(false);
-  const [data, setData] = useState({ customers: [], services: [], orders: [] });
+  const [data, setData] = useState({ customers: [], services: [], orders: [], expenses: [], products: [] });
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("fila");
   const [modal, setModal] = useState(null);
@@ -119,6 +120,7 @@ export default function LavaJaApp({ onLogout }) {
     { id: "agenda", label: "Agenda", icon: CalendarClock },
     { id: "clientes", label: "Clientes", icon: Users },
     { id: "servicos", label: "Serviços", icon: Wrench },
+    { id: "estoque", label: "Estoque", icon: Package },
     { id: "financeiro", label: "Financeiro", icon: Wallet, ownerOnly: true },
     { id: "relatorios", label: "Relatórios", icon: FileBarChart, ownerOnly: true },
     { id: "equipe", label: "Equipe", icon: UserPlus, ownerOnly: true },
@@ -175,6 +177,7 @@ export default function LavaJaApp({ onLogout }) {
         {activeTab === "agenda" && <AgendaView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "clientes" && <ClientesView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "servicos" && <ServicosView data={data} companyId={companyId} refetch={refetch} />}
+        {activeTab === "estoque" && <EstoqueView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "financeiro" && isOwner && <FinanceiroView data={data} companyId={companyId} refetch={refetch} />}
         {activeTab === "relatorios" && isOwner && <RelatoriosView data={data} />}
         {activeTab === "equipe" && isOwner && <EquipeView companyId={companyId} />}
@@ -793,6 +796,182 @@ function ServicoDetalheModal({ nome, info, onClose }) {
   );
 }
 
+function EstoqueView({ data, companyId, refetch, setModal }) {
+  const produtos = [...(data.products || [])].sort((a, b) => a.name.localeCompare(b.name));
+  const baixoEstoque = produtos.filter((p) => Number(p.quantity) <= Number(p.min_quantity));
+
+  const remove = async (p) => {
+    const ok = window.confirm(`Remover "${p.name}" do estoque?`);
+    if (!ok) return;
+    await db.deleteProduct(p.id);
+    refetch();
+  };
+
+  return (
+    <div className="p-4 md:p-6">
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h1 className="font-display text-xl font-semibold">Estoque</h1>
+          <p className="text-sm text-zinc-400">{produtos.length} produto(s) cadastrado(s)</p>
+        </div>
+        <button onClick={() => setModal({ type: "novoProduto" })} className="flex items-center gap-1.5 bg-zinc-600 hover:bg-zinc-500 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-sm">
+          <Plus size={16} /> Novo produto
+        </button>
+      </div>
+
+      {baixoEstoque.length > 0 && (
+        <div className="bg-amber-950 border border-amber-800 rounded-xl p-3 flex items-center gap-2 mb-5">
+          <AlertTriangle size={16} className="text-amber-400 shrink-0" />
+          <p className="text-sm text-amber-200">
+            {baixoEstoque.length} produto(s) com estoque baixo: {baixoEstoque.map((p) => p.name).join(", ")}
+          </p>
+        </div>
+      )}
+
+      {produtos.length === 0 && <div className="text-center py-16 text-zinc-500 text-sm">Nenhum produto cadastrado ainda</div>}
+
+      <div className="flex flex-col gap-2">
+        {produtos.map((p) => {
+          const baixo = Number(p.quantity) <= Number(p.min_quantity);
+          return (
+            <div key={p.id} className={`bg-zinc-800 border rounded-xl p-3 flex items-center gap-3 ${baixo ? "border-amber-800" : "border-zinc-700"}`}>
+              <Package size={18} className={`shrink-0 ${baixo ? "text-amber-400" : "text-zinc-500"}`} />
+              <button onClick={() => setModal({ type: "historicoEstoque", produto: p })} className="flex-1 min-w-0 text-left">
+                <p className="text-sm font-medium truncate hover:underline">{p.name}</p>
+                <p className="text-xs text-zinc-500">
+                  Mínimo: {p.min_quantity} {p.unit}
+                </p>
+              </button>
+              <span className={`font-num text-sm font-semibold shrink-0 ${baixo ? "text-amber-400" : "text-zinc-100"}`}>
+                {p.quantity} {p.unit}
+              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => setModal({ type: "movimentoEstoque", produto: p, tipo: "entrada" })}
+                  title="Registrar entrada"
+                  className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
+                >
+                  <ArrowUpCircle size={16} />
+                </button>
+                <button
+                  onClick={() => setModal({ type: "movimentoEstoque", produto: p, tipo: "saida" })}
+                  title="Registrar saída"
+                  className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
+                >
+                  <ArrowDownCircle size={16} />
+                </button>
+                <button onClick={() => remove(p)} title="Remover produto" className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-400">
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function NovoProdutoModal({ companyId, refetch, close }) {
+  const [name, setName] = useState("");
+  const [unit, setUnit] = useState("un");
+  const [quantity, setQuantity] = useState("");
+  const [minQuantity, setMinQuantity] = useState("");
+
+  const save = async () => {
+    if (!name.trim()) return;
+    await db.createProduct(companyId, {
+      name: name.trim(),
+      unit: unit.trim() || "un",
+      quantity: Number(quantity) || 0,
+      min_quantity: Number(minQuantity) || 0,
+    });
+    refetch();
+    close();
+  };
+
+  return (
+    <ModalShell title="Novo produto" onClose={close}>
+      <div className="flex flex-col gap-3">
+        <Field label="Nome do produto"><input value={name} onChange={(e) => setName(e.target.value)} className="input" placeholder="Ex: Shampoo automotivo" /></Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Unidade"><input value={unit} onChange={(e) => setUnit(e.target.value)} className="input" placeholder="un, L, kg..." /></Field>
+          <Field label="Quantidade inicial"><input value={quantity} onChange={(e) => setQuantity(e.target.value)} type="number" className="input" /></Field>
+        </div>
+        <Field label="Estoque mínimo (avisa quando chegar aqui)"><input value={minQuantity} onChange={(e) => setMinQuantity(e.target.value)} type="number" className="input" /></Field>
+        <button onClick={save} className="mt-2 bg-zinc-600 hover:bg-zinc-500 text-white font-medium text-sm py-3 rounded-xl">Salvar produto</button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function MovimentoEstoqueModal({ companyId, refetch, close, produto, tipo }) {
+  const [quantity, setQuantity] = useState("");
+  const [note, setNote] = useState("");
+  const isEntrada = tipo === "entrada";
+
+  const save = async () => {
+    const qtd = Number(quantity);
+    if (!qtd || qtd <= 0) return;
+    await db.registerMovement(companyId, produto, tipo, qtd, note.trim());
+    refetch();
+    close();
+  };
+
+  return (
+    <ModalShell title={isEntrada ? `Entrada — ${produto.name}` : `Saída — ${produto.name}`} onClose={close}>
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-zinc-400">
+          Estoque atual: <span className="font-semibold text-zinc-100">{produto.quantity} {produto.unit}</span>
+        </p>
+        <Field label={`Quantidade (${produto.unit})`}>
+          <input value={quantity} onChange={(e) => setQuantity(e.target.value)} type="number" className="input" autoFocus />
+        </Field>
+        <Field label="Observação (opcional)">
+          <input value={note} onChange={(e) => setNote(e.target.value)} className="input" placeholder={isEntrada ? "Ex: compra no fornecedor X" : "Ex: usado na lavagem do dia"} />
+        </Field>
+        <button
+          onClick={save}
+          className={`mt-2 text-white font-medium text-sm py-3 rounded-xl ${isEntrada ? "bg-emerald-700 hover:bg-emerald-600" : "bg-rose-700 hover:bg-rose-600"}`}
+        >
+          {isEntrada ? "Registrar entrada" : "Registrar saída"}
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function HistoricoEstoqueModal({ produto, close }) {
+  const [movs, setMovs] = useState(null);
+
+  useEffect(() => {
+    db.fetchMovements(produto.id).then(setMovs);
+  }, [produto.id]);
+
+  return (
+    <ModalShell title={`Histórico — ${produto.name}`} onClose={close}>
+      {movs === null && <p className="text-sm text-zinc-500">Carregando...</p>}
+      {movs?.length === 0 && <p className="text-sm text-zinc-500">Nenhuma movimentação registrada ainda.</p>}
+      <div className="flex flex-col gap-2">
+        {movs?.map((m) => (
+          <div key={m.id} className="border border-zinc-700 rounded-xl p-3 flex items-center gap-3">
+            {m.type === "entrada" ? (
+              <ArrowUpCircle size={16} className="text-emerald-400 shrink-0" />
+            ) : (
+              <ArrowDownCircle size={16} className="text-rose-400 shrink-0" />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">{m.type === "entrada" ? "Entrada" : "Saída"} de {m.quantity} {produto.unit}</p>
+              {m.note && <p className="text-xs text-zinc-500 truncate">{m.note}</p>}
+            </div>
+            <span className="text-xs text-zinc-500 shrink-0">{new Date(m.created_at).toLocaleDateString("pt-BR")}</span>
+          </div>
+        ))}
+      </div>
+    </ModalShell>
+  );
+}
+
 function EquipeView({ companyId }) {
   const [team, setTeam] = useState([]);
   const [invites, setInvites] = useState([]);
@@ -940,6 +1119,9 @@ function ModalRouter({ modal, setModal, data, companyId, refetch }) {
   if (modal.type === "novoVeiculo") return <NovoVeiculoModal data={data} companyId={companyId} refetch={refetch} close={close} customerId={modal.customerId} />;
   if (modal.type === "novoCarro") return <NovoPedidoModal data={data} companyId={companyId} refetch={refetch} close={close} mode="queue" />;
   if (modal.type === "novoAgendamento") return <NovoPedidoModal data={data} companyId={companyId} refetch={refetch} close={close} mode="schedule" />;
+  if (modal.type === "novoProduto") return <NovoProdutoModal companyId={companyId} refetch={refetch} close={close} />;
+  if (modal.type === "movimentoEstoque") return <MovimentoEstoqueModal companyId={companyId} refetch={refetch} close={close} produto={modal.produto} tipo={modal.tipo} />;
+  if (modal.type === "historicoEstoque") return <HistoricoEstoqueModal produto={modal.produto} close={close} />;
   return null;
 }
 
