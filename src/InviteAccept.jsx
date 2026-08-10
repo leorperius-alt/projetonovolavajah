@@ -61,28 +61,28 @@ export default function InviteAccept({ token, onDone }) {
   };
 
   if (info === undefined) {
-    return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-500">Carregando convite...</div>;
+    return <div className="min-h-screen bg-zinc-900 flex items-center justify-center text-zinc-400">Carregando convite...</div>;
   }
 
   if (info === null) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-zinc-900 flex items-center justify-center p-4">
         <div className="text-center max-w-sm">
           <p className="font-semibold text-zinc-200 mb-1">Convite inválido ou já utilizado</p>
-          <p className="text-sm text-zinc-400">Peça ao responsável da lavagem para gerar um novo link de convite.</p>
+          <p className="text-sm text-zinc-300">Peça ao responsável da lavagem para gerar um novo link de convite.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="min-h-screen bg-zinc-900 flex items-center justify-center p-4" style={{ fontFamily: "'Inter', sans-serif" }}>
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center mb-6">
           <img src="/logo.png" alt="LavaJá" className="w-32 h-32 rounded-2xl shadow-sm" />
         </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-          <p className="text-sm text-zinc-400 mb-4">
+        <div className="bg-zinc-800 border border-zinc-700 rounded-2xl p-6">
+          <p className="text-sm text-zinc-300 mb-4">
             Você foi convidado para fazer parte da equipe de <span className="font-semibold">{info.company_name}</span>.
           </p>
           <div className="flex flex-col gap-3">
@@ -90,16 +90,16 @@ export default function InviteAccept({ token, onDone }) {
             <Field label="E-mail"><input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className="input" /></Field>
             <Field label="Crie uma senha"><input value={password} onChange={(e) => setPassword(e.target.value)} type="password" className="input" /></Field>
             {error && <p className="text-xs text-rose-400">{error}</p>}
-            <button disabled={loading} onClick={accept} className="mt-2 bg-zinc-600 hover:bg-zinc-500 disabled:opacity-60 text-white font-medium text-sm py-3 rounded-xl">
+            <button disabled={loading} onClick={accept} className="mt-2 bg-zinc-500 hover:bg-zinc-400 disabled:opacity-60 text-white font-medium text-sm py-3 rounded-xl">
               {loading ? "Aguarde..." : "Entrar na equipe"}
             </button>
           </div>
         </div>
       </div>
       <style>{`
-        .input { width: 100%; padding: 0.6rem 0.75rem; border-radius: 0.6rem; border: 1px solid #3f3f46; background-color: #18181b; color: #f4f4f5; font-size: 0.875rem; outline: none; }
-        .input::placeholder { color: #71717a; }
-        .input:focus { box-shadow: 0 0 0 2px #71717a; border-color: #71717a; }
+        .input { width: 100%; padding: 0.6rem 0.75rem; border-radius: 0.6rem; border: 1px solid #52525b; background-color: #27272a; color: #f4f4f5; font-size: 0.875rem; outline: none; color-scheme: dark; }
+        .input::placeholder { color: #a1a1aa; }
+        .input:focus { box-shadow: 0 0 0 2px #a1a1aa; border-color: #a1a1aa; }
       `}</style>
     </div>
   );
@@ -108,7 +108,7 @@ export default function InviteAccept({ token, onDone }) {
 function Field({ label, children }) {
   return (
     <div>
-      <label className="text-xs font-medium text-zinc-400 mb-1 block">{label}</label>
+      <label className="text-xs font-medium text-zinc-300 mb-1 block">{label}</label>
       {children}
     </div>
   );
