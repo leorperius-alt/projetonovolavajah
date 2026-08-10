@@ -33,12 +33,13 @@ export function subscribeToMyProfile(userId, onChange) {
 }
 
 export async function fetchAll(companyId) {
-  const [customersRes, vehiclesRes, servicesRes, ordersRes, expensesRes] = await Promise.all([
+  const [customersRes, vehiclesRes, servicesRes, ordersRes, expensesRes, productsRes] = await Promise.all([
     supabase.from("customers").select("*").eq("company_id", companyId).order("name"),
     supabase.from("vehicles").select("*").eq("company_id", companyId),
     supabase.from("services").select("*").eq("company_id", companyId).order("name"),
     supabase.from("orders").select("*").eq("company_id", companyId).order("created_at", { ascending: false }),
     supabase.from("expenses").select("*").eq("company_id", companyId).order("expense_date", { ascending: false }),
+    supabase.from("products").select("*").eq("company_id", companyId).order("name"),
   ]);
 
   const vehiclesByCustomer = {};
@@ -57,6 +58,7 @@ export async function fetchAll(companyId) {
     services: servicesRes.data || [],
     orders: ordersRes.data || [],
     expenses: expensesRes.data || [],
+    products: productsRes.data || [],
   };
 }
 
@@ -68,6 +70,7 @@ export function subscribeToChanges(companyId, onChange) {
     .on("postgres_changes", { event: "*", schema: "public", table: "services", filter: `company_id=eq.${companyId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `company_id=eq.${companyId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "expenses", filter: `company_id=eq.${companyId}` }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "products", filter: `company_id=eq.${companyId}` }, onChange)
     .subscribe();
   return () => supabase.removeChannel(channel);
 }
@@ -198,4 +201,52 @@ export async function createExpense(companyId, { description, amount, expense_da
 export async function deleteExpense(id) {
   const { error } = await supabase.from("expenses").delete().eq("id", id);
   if (error) throw error;
+}
+
+// ---- Estoque ----
+export async function createProduct(companyId, { name, unit, quantity, min_quantity }) {
+  const { error } = await supabase.from("products").insert({
+    company_id: companyId,
+    name,
+    unit: unit || "un",
+    quantity: quantity || 0,
+    min_quantity: min_quantity || 0,
+  });
+  if (error) throw error;
+}
+
+export async function deleteProduct(id) {
+  const { error } = await supabase.from("products").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function registerMovement(companyId, product, type, quantity, note) {
+  const delta = type === "entrada" ? quantity : -quantity;
+  const novaQuantidade = Number(product.quantity) + delta;
+
+  const { error: moveError } = await supabase.from("stock_movements").insert({
+    company_id: companyId,
+    product_id: product.id,
+    type,
+    quantity,
+    note: note || null,
+  });
+  if (moveError) throw moveError;
+
+  const { error: updateError } = await supabase
+    .from("products")
+    .update({ quantity: novaQuantidade })
+    .eq("id", product.id);
+  if (updateError) throw updateError;
+}
+
+export async function fetchMovements(productId) {
+  const { data, error } = await supabase
+    .from("stock_movements")
+    .select("*")
+    .eq("product_id", productId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) throw error;
+  return data || [];
 }
