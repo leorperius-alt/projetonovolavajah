@@ -3,7 +3,7 @@ import {
   Car, CalendarClock, Users, Wrench, Wallet, Plus, X, Check, Phone, Trash2, Clock,
   Search, Droplets, CheckCircle2, PlayCircle, LogIn, Banknote, LogOut, UserPlus, Copy, Mail,
   TrendingDown, FileBarChart, Download, ChevronRight, ShieldOff, ShieldCheck, UserX,
-  Package, ArrowDownCircle, ArrowUpCircle, History, AlertTriangle, MessageCircle,
+  Package, ArrowDownCircle, ArrowUpCircle, History, AlertTriangle, MessageCircle, Percent,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./lib/db";
@@ -32,7 +32,7 @@ export default function LavaJaApp({ onLogout }) {
   const [myRole, setMyRole] = useState(null);
   const [myUserId, setMyUserId] = useState(null);
   const [blocked, setBlocked] = useState(false);
-  const [data, setData] = useState({ customers: [], services: [], orders: [], expenses: [], products: [], serviceProducts: [] });
+  const [data, setData] = useState({ customers: [], services: [], orders: [], expenses: [], products: [], serviceProducts: [], team: [] });
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("fila");
   const [modal, setModal] = useState(null);
@@ -130,6 +130,7 @@ export default function LavaJaApp({ onLogout }) {
     { id: "estoque", label: "Estoque", icon: Package },
     { id: "financeiro", label: "Financeiro", icon: Wallet, ownerOnly: true },
     { id: "relatorios", label: "Relatórios", icon: FileBarChart, ownerOnly: true },
+    { id: "comissoes", label: "Comissões", icon: Percent, ownerOnly: true },
     { id: "equipe", label: "Equipe", icon: UserPlus, ownerOnly: true },
   ];
   const NAV = FULL_NAV.filter((n) => !n.ownerOnly || isOwner);
@@ -187,6 +188,7 @@ export default function LavaJaApp({ onLogout }) {
         {activeTab === "estoque" && <EstoqueView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "financeiro" && isOwner && <FinanceiroView data={data} companyId={companyId} refetch={refetch} />}
         {activeTab === "relatorios" && isOwner && <RelatoriosView data={data} />}
+        {activeTab === "comissoes" && isOwner && <ComissoesView data={data} />}
         {activeTab === "equipe" && isOwner && <EquipeView companyId={companyId} />}
       </div>
 
@@ -203,7 +205,7 @@ export default function LavaJaApp({ onLogout }) {
         ))}
       </div>
 
-      {modal && <ModalRouter modal={modal} setModal={setModal} data={data} companyId={companyId} refetch={refetch} />}
+      {modal && <ModalRouter modal={modal} setModal={setModal} data={data} companyId={companyId} refetch={refetch} myUserId={myUserId} />}
     </div>
   );
 }
@@ -1087,6 +1089,91 @@ function VincularProdutosModal({ data, companyId, refetch, close, servico }) {
   );
 }
 
+function ComissoesView({ data }) {
+  const [start, setStart] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().slice(0, 10);
+  });
+  const [end, setEnd] = useState(todayStr());
+
+  const ordersInRange = data.orders.filter((o) => {
+    if (o.status !== "entregue") return false;
+    const d = dateStrOf(o.created_at);
+    return d >= start && d <= end;
+  });
+
+  const semAtendente = ordersInRange.filter((o) => !o.attendant_id).length;
+
+  const porAtendente = {};
+  ordersInRange.forEach((o) => {
+    if (!o.attendant_id) return;
+    porAtendente[o.attendant_id] = porAtendente[o.attendant_id] || { qtd: 0, total: 0 };
+    porAtendente[o.attendant_id].qtd += 1;
+    porAtendente[o.attendant_id].total += o.total;
+  });
+
+  const linhas = data.team
+    .map((membro) => {
+      const info = porAtendente[membro.id] || { qtd: 0, total: 0 };
+      const taxa = Number(membro.commission_rate) || 0;
+      const comissao = (info.total * taxa) / 100;
+      return { membro, ...info, taxa, comissao };
+    })
+    .filter((l) => l.qtd > 0 || l.taxa > 0)
+    .sort((a, b) => b.comissao - a.comissao);
+
+  const totalComissoes = linhas.reduce((s, l) => s + l.comissao, 0);
+
+  return (
+    <div className="p-4 md:p-6">
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+        <h1 className="font-display text-xl font-semibold">Comissões</h1>
+        <div className="flex items-center gap-2 flex-wrap">
+          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-100 text-sm" style={{ colorScheme: "dark" }} />
+          <span className="text-zinc-400 text-sm">até</span>
+          <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-100 text-sm" style={{ colorScheme: "dark" }} />
+        </div>
+      </div>
+
+      <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4 mb-5">
+        <p className="text-xs text-zinc-500 mb-1">Total a pagar de comissão no período</p>
+        <p className="font-num text-2xl font-semibold text-zinc-100">{money(totalComissoes)}</p>
+      </div>
+
+      {semAtendente > 0 && (
+        <div className="bg-amber-950 border border-amber-800 rounded-xl p-3 flex items-center gap-2 mb-5">
+          <AlertTriangle size={16} className="text-amber-400 shrink-0" />
+          <p className="text-sm text-amber-200">
+            {semAtendente} lavagem(ns) nesse período sem atendente definido — não entraram no cálculo de ninguém.
+          </p>
+        </div>
+      )}
+
+      {linhas.length === 0 && (
+        <p className="text-sm text-zinc-500 text-center py-10">
+          Nenhum funcionário com comissão configurada ou lavagens no período. Defina a % de cada um na aba Equipe.
+        </p>
+      )}
+
+      <div className="flex flex-col gap-2">
+        {linhas.map((l) => (
+          <div key={l.membro.id} className="bg-zinc-800 border border-zinc-700 rounded-xl p-3 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-zinc-700 text-zinc-100 flex items-center justify-center text-xs font-semibold shrink-0">
+              {(l.membro.full_name || "?").slice(0, 1).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{l.membro.full_name || "Sem nome"}</p>
+              <p className="text-xs text-zinc-500">{l.qtd} lavagem(ns) · {money(l.total)} faturado · {l.taxa}% de comissão</p>
+            </div>
+            <span className="font-num text-base font-semibold text-zinc-100 shrink-0">{money(l.comissao)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function EquipeView({ companyId }) {
   const [team, setTeam] = useState([]);
   const [invites, setInvites] = useState([]);
@@ -1127,6 +1214,12 @@ function EquipeView({ companyId }) {
     const confirmado = window.confirm(`Remover ${membro.full_name || "esse funcionário"} da equipe? Ele perde o acesso imediatamente e precisaria de um novo convite pra voltar.`);
     if (!confirmado) return;
     await db.removeMember(membro.id);
+    load();
+  };
+
+  const salvarComissao = async (membro, value) => {
+    const rate = Math.max(0, Number(value) || 0);
+    await db.setMemberCommission(membro.id, rate);
     load();
   };
 
@@ -1186,6 +1279,18 @@ function EquipeView({ companyId }) {
                 {p.blocked && <span className="text-rose-400 font-medium"> · bloqueado</span>}
               </span>
             </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <label className="text-xs text-zinc-500">Comissão</label>
+              <input
+                defaultValue={p.commission_rate}
+                onBlur={(e) => salvarComissao(p, e.target.value)}
+                type="number"
+                min="0"
+                max="100"
+                className="w-16 px-2 py-1 rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-100 text-sm text-right focus:outline-none focus:ring-2 focus:ring-zinc-400"
+              />
+              <span className="text-xs text-zinc-500">%</span>
+            </div>
             {p.role !== "owner" && (
               <div className="flex items-center gap-1 shrink-0">
                 <button
@@ -1228,12 +1333,12 @@ function ModalShell({ title, onClose, children }) {
   );
 }
 
-function ModalRouter({ modal, setModal, data, companyId, refetch }) {
+function ModalRouter({ modal, setModal, data, companyId, refetch, myUserId }) {
   const close = () => setModal(null);
   if (modal.type === "novoCliente") return <NovoClienteModal data={data} companyId={companyId} refetch={refetch} close={close} />;
   if (modal.type === "novoVeiculo") return <NovoVeiculoModal data={data} companyId={companyId} refetch={refetch} close={close} customerId={modal.customerId} />;
-  if (modal.type === "novoCarro") return <NovoPedidoModal data={data} companyId={companyId} refetch={refetch} close={close} mode="queue" />;
-  if (modal.type === "novoAgendamento") return <NovoPedidoModal data={data} companyId={companyId} refetch={refetch} close={close} mode="schedule" />;
+  if (modal.type === "novoCarro") return <NovoPedidoModal data={data} companyId={companyId} refetch={refetch} close={close} mode="queue" myUserId={myUserId} />;
+  if (modal.type === "novoAgendamento") return <NovoPedidoModal data={data} companyId={companyId} refetch={refetch} close={close} mode="schedule" myUserId={myUserId} />;
   if (modal.type === "novoProduto") return <NovoProdutoModal companyId={companyId} refetch={refetch} close={close} />;
   if (modal.type === "movimentoEstoque") return <MovimentoEstoqueModal companyId={companyId} refetch={refetch} close={close} produto={modal.produto} tipo={modal.tipo} />;
   if (modal.type === "historicoEstoque") return <HistoricoEstoqueModal produto={modal.produto} close={close} />;
@@ -1298,10 +1403,11 @@ function NovoVeiculoModal({ companyId, refetch, close, customerId }) {
   );
 }
 
-function NovoPedidoModal({ data, companyId, refetch, close, mode }) {
+function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
   const [customerId, setCustomerId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   const [serviceIds, setServiceIds] = useState([]);
+  const [attendantId, setAttendantId] = useState(() => (data.team.some((t) => t.id === myUserId) ? myUserId : ""));
   const [newCustomerMode, setNewCustomerMode] = useState(data.customers.length === 0);
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
@@ -1369,6 +1475,7 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode }) {
         extra_services: extraServices.map(({ name, price }) => ({ name, price })),
         total,
         paid: false,
+        attendant_id: attendantId || null,
         status: mode === "queue" ? "aguardando" : "agendado",
         scheduled_time: mode === "schedule" ? new Date(`${date}T${time}:00`).toISOString() : null,
       });
@@ -1434,6 +1541,15 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode }) {
             <Field label="Hora"><input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="input" /></Field>
           </div>
         )}
+
+        <Field label="Atendente responsável">
+          <select value={attendantId} onChange={(e) => setAttendantId(e.target.value)} className="input">
+            <option value="">Não definido</option>
+            {data.team.filter((t) => !t.blocked).map((t) => (
+              <option key={t.id} value={t.id}>{t.full_name || "Sem nome"}</option>
+            ))}
+          </select>
+        </Field>
 
         <p className="text-xs font-semibold text-zinc-400 uppercase mt-2">Serviços</p>
         <div className="flex flex-col gap-1.5">
