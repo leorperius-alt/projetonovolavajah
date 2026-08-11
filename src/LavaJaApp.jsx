@@ -1313,6 +1313,8 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode }) {
   const [extraServices, setExtraServices] = useState([]);
   const [extraName, setExtraName] = useState("");
   const [extraPrice, setExtraPrice] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const customer = data.customers.find((c) => c.id === customerId);
   const total =
@@ -1330,43 +1332,58 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode }) {
   const removeExtraService = (id) => setExtraServices((prev) => prev.filter((e) => e.id !== id));
 
   const save = async () => {
+    if (saving) return;
     if (serviceIds.length === 0 && extraServices.length === 0) return;
-    let finalCustomerId = customerId;
-    let finalVehicleId = vehicleId;
+    setError("");
+    setSaving(true);
+    try {
+      let finalCustomerId = customerId;
+      let finalVehicleId = vehicleId;
 
-    if (newCustomerMode) {
-      if (!newName.trim() || !newPlate.trim()) return;
-      const created = await db.createCustomer(companyId, {
-        name: newName.trim(),
-        phone: newPhone.trim(),
-        vehicle: { plate: newPlate.trim().toUpperCase(), model: newModel.trim(), color: newColor.trim() },
+      if (newCustomerMode) {
+        if (!newName.trim() || !newPlate.trim()) {
+          setError("Preencha ao menos o nome do cliente e a placa.");
+          return;
+        }
+        const created = await db.createCustomer(companyId, {
+          name: newName.trim(),
+          phone: newPhone.trim(),
+          vehicle: { plate: newPlate.trim().toUpperCase(), model: newModel.trim(), color: newColor.trim() },
+        });
+        // recarrega para pegar o veículo criado junto
+        const fresh = await db.fetchAll(companyId);
+        const freshCustomer = fresh.customers.find((c) => c.id === created.id);
+        finalCustomerId = created.id;
+        finalVehicleId = freshCustomer?.vehicles[0]?.id;
+      } else {
+        if (!customerId || !vehicleId) {
+          setError("Selecione o cliente e o veículo.");
+          return;
+        }
+      }
+
+      await db.createOrder(companyId, {
+        customer_id: finalCustomerId,
+        vehicle_id: finalVehicleId,
+        service_ids: serviceIds,
+        extra_services: extraServices.map(({ name, price }) => ({ name, price })),
+        total,
+        paid: false,
+        status: mode === "queue" ? "aguardando" : "agendado",
+        scheduled_time: mode === "schedule" ? new Date(`${date}T${time}:00`).toISOString() : null,
       });
-      // recarrega para pegar o veículo criado junto
-      const fresh = await db.fetchAll(companyId);
-      const freshCustomer = fresh.customers.find((c) => c.id === created.id);
-      finalCustomerId = created.id;
-      finalVehicleId = freshCustomer?.vehicles[0]?.id;
-    } else {
-      if (!customerId || !vehicleId) return;
+
+      if (mode === "queue") {
+        await db.consumeStockForOrder(serviceIds, data.serviceProducts, "Consumo automático — carro na fila");
+      }
+
+      refetch();
+      close();
+    } catch (e) {
+      setError("Não foi possível salvar: " + e.message);
+    } finally {
+      setSaving(false);
     }
-
-    await db.createOrder(companyId, {
-      customer_id: finalCustomerId,
-      vehicle_id: finalVehicleId,
-      service_ids: serviceIds,
-      extra_services: extraServices.map(({ name, price }) => ({ name, price })),
-      total,
-      paid: false,
-      status: mode === "queue" ? "aguardando" : "agendado",
-      scheduled_time: mode === "schedule" ? new Date(`${date}T${time}:00`).toISOString() : null,
-    });
-
-    if (mode === "queue") {
-      await db.consumeStockForOrder(serviceIds, data.serviceProducts, "Consumo automático — carro na fila");
-    }
-
-    refetch();
-    close();
   };
 
   return (
@@ -1459,8 +1476,14 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode }) {
           <span className="font-num text-lg font-semibold text-zinc-200">{money(total)}</span>
         </div>
 
-        <button onClick={save} className="mt-2 bg-zinc-500 hover:bg-zinc-400 text-white font-medium text-sm py-3 rounded-xl">
-          {mode === "queue" ? "Adicionar à fila" : "Salvar agendamento"}
+        {error && <p className="text-xs text-rose-400">{error}</p>}
+
+        <button
+          onClick={save}
+          disabled={saving}
+          className="mt-2 bg-zinc-500 hover:bg-zinc-400 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium text-sm py-3 rounded-xl"
+        >
+          {saving ? "Salvando..." : mode === "queue" ? "Adicionar à fila" : "Salvar agendamento"}
         </button>
       </div>
     </ModalShell>
