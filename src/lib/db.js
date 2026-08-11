@@ -33,7 +33,7 @@ export function subscribeToMyProfile(userId, onChange) {
 }
 
 export async function fetchAll(companyId) {
-  const [customersRes, vehiclesRes, servicesRes, ordersRes, expensesRes, productsRes, serviceProductsRes] = await Promise.all([
+  const [customersRes, vehiclesRes, servicesRes, ordersRes, expensesRes, productsRes, serviceProductsRes, teamRes] = await Promise.all([
     supabase.from("customers").select("*").eq("company_id", companyId).order("name"),
     supabase.from("vehicles").select("*").eq("company_id", companyId),
     supabase.from("services").select("*").eq("company_id", companyId).order("name"),
@@ -41,6 +41,7 @@ export async function fetchAll(companyId) {
     supabase.from("expenses").select("*").eq("company_id", companyId).order("expense_date", { ascending: false }),
     supabase.from("products").select("*").eq("company_id", companyId).order("name"),
     supabase.from("service_products").select("*").eq("company_id", companyId),
+    supabase.from("profiles").select("id, full_name, role, commission_rate, blocked").eq("company_id", companyId).order("full_name"),
   ]);
 
   const vehiclesByCustomer = {};
@@ -61,6 +62,7 @@ export async function fetchAll(companyId) {
     expenses: expensesRes.data || [],
     products: productsRes.data || [],
     serviceProducts: serviceProductsRes.data || [],
+    team: teamRes.data || [],
   };
 }
 
@@ -74,6 +76,7 @@ export function subscribeToChanges(companyId, onChange) {
     .on("postgres_changes", { event: "*", schema: "public", table: "expenses", filter: `company_id=eq.${companyId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "products", filter: `company_id=eq.${companyId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "service_products", filter: `company_id=eq.${companyId}` }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "profiles", filter: `company_id=eq.${companyId}` }, onChange)
     .subscribe();
   return () => supabase.removeChannel(channel);
 }
@@ -138,11 +141,16 @@ export async function togglePaid(id, paid) {
 export async function fetchTeam(companyId) {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, role, blocked, created_at")
+    .select("id, full_name, role, blocked, commission_rate, created_at")
     .eq("company_id", companyId)
     .order("created_at");
   if (error) throw error;
   return data || [];
+}
+
+export async function setMemberCommission(id, rate) {
+  const { error } = await supabase.from("profiles").update({ commission_rate: rate }).eq("id", id);
+  if (error) throw error;
 }
 
 export async function setMemberBlocked(id, blocked) {
