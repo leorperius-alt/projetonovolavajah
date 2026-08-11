@@ -33,13 +33,14 @@ export function subscribeToMyProfile(userId, onChange) {
 }
 
 export async function fetchAll(companyId) {
-  const [customersRes, vehiclesRes, servicesRes, ordersRes, expensesRes, productsRes] = await Promise.all([
+  const [customersRes, vehiclesRes, servicesRes, ordersRes, expensesRes, productsRes, serviceProductsRes] = await Promise.all([
     supabase.from("customers").select("*").eq("company_id", companyId).order("name"),
     supabase.from("vehicles").select("*").eq("company_id", companyId),
     supabase.from("services").select("*").eq("company_id", companyId).order("name"),
     supabase.from("orders").select("*").eq("company_id", companyId).order("created_at", { ascending: false }),
     supabase.from("expenses").select("*").eq("company_id", companyId).order("expense_date", { ascending: false }),
     supabase.from("products").select("*").eq("company_id", companyId).order("name"),
+    supabase.from("service_products").select("*").eq("company_id", companyId),
   ]);
 
   const vehiclesByCustomer = {};
@@ -59,6 +60,7 @@ export async function fetchAll(companyId) {
     orders: ordersRes.data || [],
     expenses: expensesRes.data || [],
     products: productsRes.data || [],
+    serviceProducts: serviceProductsRes.data || [],
   };
 }
 
@@ -71,6 +73,7 @@ export function subscribeToChanges(companyId, onChange) {
     .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `company_id=eq.${companyId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "expenses", filter: `company_id=eq.${companyId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "products", filter: `company_id=eq.${companyId}` }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "service_products", filter: `company_id=eq.${companyId}` }, onChange)
     .subscribe();
   return () => supabase.removeChannel(channel);
 }
@@ -220,24 +223,14 @@ export async function deleteProduct(id) {
   if (error) throw error;
 }
 
-export async function registerMovement(companyId, product, type, quantity, note) {
-  const delta = type === "entrada" ? quantity : -quantity;
-  const novaQuantidade = Number(product.quantity) + delta;
-
-  const { error: moveError } = await supabase.from("stock_movements").insert({
-    company_id: companyId,
-    product_id: product.id,
-    type,
-    quantity,
-    note: note || null,
+export async function registerMovement(productId, type, quantity, note) {
+  const { error } = await supabase.rpc("adjust_stock", {
+    p_product_id: productId,
+    p_type: type,
+    p_quantity: quantity,
+    p_note: note || null,
   });
-  if (moveError) throw moveError;
-
-  const { error: updateError } = await supabase
-    .from("products")
-    .update({ quantity: novaQuantidade })
-    .eq("id", product.id);
-  if (updateError) throw updateError;
+  if (error) throw error;
 }
 
 export async function fetchMovements(productId) {
@@ -249,4 +242,27 @@ export async function fetchMovements(productId) {
     .limit(50);
   if (error) throw error;
   return data || [];
+}
+
+// ---- Vínculo produtos x serviços ----
+export async function addServiceProduct(companyId, serviceId, productId, quantity) {
+  const { error } = await supabase.from("service_products").insert({
+    company_id: companyId,
+    service_id: serviceId,
+    product_id: productId,
+    quantity,
+  });
+  if (error) throw error;
+}
+
+export async function removeServiceProduct(id) {
+  const { error } = await supabase.from("service_products").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function consumeStockForOrder(serviceIds, serviceProducts, note) {
+  const relevantes = (serviceProducts || []).filter((sp) => (serviceIds || []).includes(sp.service_id));
+  for (const sp of relevantes) {
+    await registerMovement(sp.product_id, "saida", sp.quantity, note);
+  }
 }
