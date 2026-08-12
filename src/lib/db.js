@@ -274,3 +274,31 @@ export async function consumeStockForOrder(serviceIds, serviceProducts, note) {
     await registerMovement(sp.product_id, "saida", sp.quantity, note);
   }
 }
+
+export async function reverseStockForOrder(serviceIds, serviceProducts, note) {
+  const relevantes = (serviceProducts || []).filter((sp) => (serviceIds || []).includes(sp.service_id));
+  for (const sp of relevantes) {
+    await registerMovement(sp.product_id, "entrada", sp.quantity, note);
+  }
+}
+
+export async function cancelOrder(order, serviceProducts) {
+  // se o pedido já tinha saído da agenda (ou seja, o estoque já foi descontado), estorna
+  if (order.status !== "agendado") {
+    await reverseStockForOrder(order.service_ids, serviceProducts, "Estorno — pedido cancelado");
+  }
+  const { error } = await supabase.from("orders").update({ status: "cancelado" }).eq("id", order.id);
+  if (error) throw error;
+}
+
+export async function updateOrderServices(order, updates, serviceProducts) {
+  const estoqueJaConsumido = order.status !== "agendado";
+  if (estoqueJaConsumido) {
+    await reverseStockForOrder(order.service_ids, serviceProducts, "Ajuste — edição de pedido");
+  }
+  const { error } = await supabase.from("orders").update(updates).eq("id", order.id);
+  if (error) throw error;
+  if (estoqueJaConsumido) {
+    await consumeStockForOrder(updates.service_ids, serviceProducts, "Ajuste — edição de pedido");
+  }
+}
