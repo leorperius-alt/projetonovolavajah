@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { supabase } from "./supabaseClient";
+import ThemeToggle from "./ThemeToggle.jsx";
 
 export default function ResetPassword({ onDone }) {
   const [password, setPassword] = useState("");
@@ -28,13 +29,16 @@ export default function ResetPassword({ onDone }) {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-900 flex items-center justify-center p-4" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-4" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <div className="fixed top-4 right-4">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center mb-8">
           <img src="/logo.png" alt="LavaJá" className="w-44 h-44 rounded-2xl shadow-sm" />
         </div>
-        <div className="bg-zinc-800 border border-zinc-700 rounded-2xl p-6">
-          <p className="text-sm text-zinc-300 mb-4">Crie uma nova senha para sua conta.</p>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6">
+          <p className="text-sm text-[var(--text-secondary)] mb-4">Crie uma nova senha para sua conta.</p>
           <div className="flex flex-col gap-3">
             <Field label="Nova senha">
               <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" className="input" />
@@ -54,9 +58,9 @@ export default function ResetPassword({ onDone }) {
         </div>
       </div>
       <style>{`
-        .input { width: 100%; padding: 0.6rem 0.75rem; border-radius: 0.6rem; border: 1px solid #52525b; background-color: #27272a; color: #f4f4f5; font-size: 0.875rem; outline: none; color-scheme: dark; }
-        .input::placeholder { color: #a1a1aa; }
-        .input:focus { box-shadow: 0 0 0 2px #a1a1aa; border-color: #a1a1aa; }
+        .input { width: 100%; padding: 0.6rem 0.75rem; border-radius: 0.6rem; border: 1px solid var(--border); background-color: var(--surface); color: var(--text); font-size: 0.875rem; outline: none; }
+        .input::placeholder { color: var(--text-muted); }
+        .input:focus { box-shadow: 0 0 0 2px var(--text-muted); border-color: var(--text-muted); }
       `}</style>
     </div>
   );
@@ -65,7 +69,7 @@ export default function ResetPassword({ onDone }) {
 function Field({ label, children }) {
   return (
     <div>
-      <label className="text-xs font-medium text-zinc-300 mb-1 block">{label}</label>
+      <label className="text-xs font-medium text-[var(--text-secondary)] mb-1 block">{label}</label>
       {children}
     </div>
   );
