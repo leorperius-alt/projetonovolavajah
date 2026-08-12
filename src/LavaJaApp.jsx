@@ -4,6 +4,7 @@ import {
   Search, Droplets, CheckCircle2, PlayCircle, LogIn, Banknote, LogOut, UserPlus, Copy, Mail,
   TrendingDown, FileBarChart, Download, ChevronRight, ShieldOff, ShieldCheck, UserX,
   Package, ArrowDownCircle, ArrowUpCircle, History, AlertTriangle, MessageCircle, Percent,
+  Edit2, XCircle,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./lib/db";
@@ -238,6 +239,12 @@ function FilaView({ data, companyName, refetch, setModal }) {
     await db.updateOrderStatus(order.id, status);
     refetch();
   };
+  const cancelar = async (order) => {
+    const ok = window.confirm("Cancelar esse pedido? Se o estoque já tiver sido usado, ele volta automaticamente.");
+    if (!ok) return;
+    await db.cancelOrder(order, data.serviceProducts);
+    refetch();
+  };
   const columns = [
     { key: "aguardando", title: "Aguardando", icon: Clock },
     { key: "lavando", title: "Lavando", icon: Droplets },
@@ -275,7 +282,17 @@ function FilaView({ data, companyName, refetch, setModal }) {
                   const link = waLink(customer?.phone, mensagem);
                   return (
                     <div key={order.id} className="border border-[var(--border)] rounded-xl p-3 bg-[var(--bg)]">
-                      <OrderCustomerLine data={data} order={order} />
+                      <div className="flex items-start justify-between gap-2">
+                        <OrderCustomerLine data={data} order={order} />
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button onClick={() => setModal({ type: "editarPedido", order })} title="Editar pedido" className="text-[var(--text-muted)] hover:text-[var(--text)]">
+                            <Edit2 size={14} />
+                          </button>
+                          <button onClick={() => cancelar(order)} title="Cancelar pedido" className="text-[var(--text-muted)] hover:text-rose-400">
+                            <XCircle size={15} />
+                          </button>
+                        </div>
+                      </div>
                       <OrderServicesLine data={data} order={order} />
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-xs text-[var(--text-secondary)]">há {timeAgo(order.created_at)}</span>
@@ -335,6 +352,13 @@ function AgendaView({ data, refetch, setModal }) {
     refetch();
   };
 
+  const cancelar = async (order) => {
+    const ok = window.confirm("Cancelar esse agendamento?");
+    if (!ok) return;
+    await db.cancelOrder(order, data.serviceProducts);
+    refetch();
+  };
+
   const groups = {};
   scheduled.forEach((o) => {
     const d = dateStrOf(o.scheduled_time);
@@ -373,11 +397,19 @@ function AgendaView({ data, refetch, setModal }) {
                     <OrderCustomerLine data={data} order={order} />
                     <OrderServicesLine data={data} order={order} />
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-num text-sm font-semibold">{money(order.total)}</p>
-                    <button onClick={() => checkIn(order)} className="mt-1 flex items-center gap-1 text-xs font-medium text-[var(--text)] hover:text-[var(--text)]">
-                      <LogIn size={12} /> Check-in
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => setModal({ type: "editarPedido", order })} title="Editar" className="text-[var(--text-muted)] hover:text-[var(--text)]">
+                      <Edit2 size={14} />
                     </button>
+                    <button onClick={() => cancelar(order)} title="Cancelar" className="text-[var(--text-muted)] hover:text-rose-400">
+                      <XCircle size={15} />
+                    </button>
+                    <div className="text-right">
+                      <p className="font-num text-sm font-semibold">{money(order.total)}</p>
+                      <button onClick={() => checkIn(order)} className="mt-1 flex items-center gap-1 text-xs font-medium text-[var(--text)] hover:text-[var(--text)]">
+                        <LogIn size={12} /> Check-in
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1179,6 +1211,125 @@ function ComissoesView({ data }) {
   );
 }
 
+function EditarPedidoModal({ data, refetch, close, order }) {
+  const [serviceIds, setServiceIds] = useState(order.service_ids || []);
+  const [extraServices, setExtraServices] = useState(order.extra_services || []);
+  const [extraName, setExtraName] = useState("");
+  const [extraPrice, setExtraPrice] = useState("");
+  const [attendantId, setAttendantId] = useState(order.attendant_id || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const customer = data.customers.find((c) => c.id === order.customer_id);
+  const vehicle = customer?.vehicles.find((v) => v.id === order.vehicle_id);
+
+  const total =
+    serviceIds.reduce((s, id) => s + (data.services.find((sv) => sv.id === id)?.price || 0), 0) +
+    extraServices.reduce((s, e) => s + e.price, 0);
+
+  const toggleService = (id) => setServiceIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const addExtraService = () => {
+    if (!extraName.trim() || !extraPrice) return;
+    setExtraServices((prev) => [...prev, { id: genLocalId(), name: extraName.trim(), price: Number(extraPrice) || 0 }]);
+    setExtraName("");
+    setExtraPrice("");
+  };
+  const removeExtraService = (id) => setExtraServices((prev) => prev.filter((e) => e.id !== id));
+
+  const save = async () => {
+    if (saving) return;
+    if (serviceIds.length === 0 && extraServices.length === 0) return;
+    setSaving(true);
+    setError("");
+    try {
+      await db.updateOrderServices(
+        order,
+        {
+          service_ids: serviceIds,
+          extra_services: extraServices.map(({ name, price }) => ({ name, price })),
+          total,
+          attendant_id: attendantId || null,
+        },
+        data.serviceProducts
+      );
+      refetch();
+      close();
+    } catch (e) {
+      setError("Não foi possível salvar: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <ModalShell title={`Editar pedido — ${vehicle?.plate || "veículo"}`} onClose={close}>
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-[var(--text-secondary)]">{customer?.name} · {vehicle?.model}</p>
+
+        <Field label="Atendente responsável">
+          <select value={attendantId} onChange={(e) => setAttendantId(e.target.value)} className="input">
+            <option value="">Não definido</option>
+            {data.team.filter((t) => !t.blocked).map((t) => (
+              <option key={t.id} value={t.id}>{t.full_name || "Sem nome"}</option>
+            ))}
+          </select>
+        </Field>
+
+        <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mt-2">Serviços</p>
+        <div className="flex flex-col gap-1.5">
+          {data.services.map((s) => (
+            <label key={s.id} className="flex items-center gap-2 border border-[var(--border)] rounded-lg px-3 py-2 cursor-pointer">
+              <input type="checkbox" checked={serviceIds.includes(s.id)} onChange={() => toggleService(s.id)} />
+              <span className="flex-1 text-sm">{s.name}</span>
+              <span className="font-num text-sm text-[var(--text-secondary)]">{money(s.price)}</span>
+            </label>
+          ))}
+        </div>
+
+        <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mt-2">Serviço avulso</p>
+        <div className="flex flex-col gap-2">
+          <input value={extraName} onChange={(e) => setExtraName(e.target.value)} placeholder="Descrição do serviço" className="input" />
+          <div className="flex gap-2">
+            <input value={extraPrice} onChange={(e) => setExtraPrice(e.target.value)} type="number" placeholder="Valor (R$)" className="input flex-1" />
+            <button onClick={addExtraService} type="button" className="shrink-0 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg px-4">
+              <Plus size={16} />
+            </button>
+          </div>
+        </div>
+        {extraServices.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            {extraServices.map((e) => (
+              <div key={e.id} className="flex items-center gap-2 border border-amber-800 bg-amber-950 rounded-lg px-3 py-2.5">
+                <span className="flex-1 text-sm font-semibold text-amber-200">{e.name}</span>
+                <span className="font-num text-sm font-semibold text-amber-400">{money(e.price)}</span>
+                <button onClick={() => removeExtraService(e.id)} className="text-amber-500 hover:text-rose-400">
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border)]">
+          <span className="text-sm text-[var(--text-secondary)]">Total</span>
+          <span className="font-num text-lg font-semibold text-[var(--text)]">{money(total)}</span>
+        </div>
+
+        {order.status !== "agendado" && (
+          <p className="text-xs text-amber-400">O estoque já usado por esse pedido será ajustado automaticamente pra bater com os serviços novos.</p>
+        )}
+
+        {error && <p className="text-xs text-rose-400">{error}</p>}
+
+        <button onClick={save} disabled={saving} className="mt-2 bg-zinc-600 hover:bg-zinc-500 disabled:opacity-60 text-white font-medium text-sm py-3 rounded-xl">
+          {saving ? "Salvando..." : "Salvar alterações"}
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
 function EquipeView({ companyId }) {
   const [team, setTeam] = useState([]);
   const [invites, setInvites] = useState([]);
@@ -1348,6 +1499,7 @@ function ModalRouter({ modal, setModal, data, companyId, refetch, myUserId }) {
   if (modal.type === "movimentoEstoque") return <MovimentoEstoqueModal companyId={companyId} refetch={refetch} close={close} produto={modal.produto} tipo={modal.tipo} />;
   if (modal.type === "historicoEstoque") return <HistoricoEstoqueModal produto={modal.produto} close={close} />;
   if (modal.type === "vincularProdutos") return <VincularProdutosModal data={data} companyId={companyId} refetch={refetch} close={close} servico={modal.servico} />;
+  if (modal.type === "editarPedido") return <EditarPedidoModal data={data} refetch={refetch} close={close} order={modal.order} />;
   return null;
 }
 
