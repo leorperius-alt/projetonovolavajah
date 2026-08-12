@@ -5,11 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
     <title>LavaJá</title>
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#09090b" />
+    <meta name="theme-color" content="#ffffff" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>html, body { background-color: #18181b; color-scheme: dark; }</style>
+    <style>
+      :root {
+        --bg: #fafafa;
+        --surface: #ffffff;
+        --border: #e4e4e7;
+        --text: #18181b;
+        --text-secondary: #52525b;
+        --text-muted: #71717a;
+        color-scheme: light;
+      }
+      html.dark {
+        --bg: #18181b;
+        --surface: #27272a;
+        --border: #3f3f46;
+        --text: #f4f4f5;
+        --text-secondary: #a1a1aa;
+        --text-muted: #71717a;
+        color-scheme: dark;
+      }
+      html, body { background-color: var(--bg); }
+    </style>
+    <script>
+      (function () {
+        var saved = localStorage.getItem("lavaja-theme");
+        if (saved === "dark") document.documentElement.classList.add("dark");
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
