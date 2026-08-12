@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
+import ThemeToggle from "./ThemeToggle.jsx";
 import * as db from "./lib/db";
 
 export default function InviteAccept({ token, onDone }) {
@@ -61,28 +62,31 @@ export default function InviteAccept({ token, onDone }) {
   };
 
   if (info === undefined) {
-    return <div className="min-h-screen bg-zinc-900 flex items-center justify-center text-zinc-400">Carregando convite...</div>;
+    return <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center text-[var(--text-secondary)]">Carregando convite...</div>;
   }
 
   if (info === null) {
     return (
-      <div className="min-h-screen bg-zinc-900 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-4">
         <div className="text-center max-w-sm">
-          <p className="font-semibold text-zinc-200 mb-1">Convite inválido ou já utilizado</p>
-          <p className="text-sm text-zinc-300">Peça ao responsável da lavagem para gerar um novo link de convite.</p>
+          <p className="font-semibold text-[var(--text)] mb-1">Convite inválido ou já utilizado</p>
+          <p className="text-sm text-[var(--text-secondary)]">Peça ao responsável da lavagem para gerar um novo link de convite.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-900 flex items-center justify-center p-4" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-4" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <div className="fixed top-4 right-4">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center mb-6">
           <img src="/logo.png" alt="LavaJá" className="w-32 h-32 rounded-2xl shadow-sm" />
         </div>
-        <div className="bg-zinc-800 border border-zinc-700 rounded-2xl p-6">
-          <p className="text-sm text-zinc-300 mb-4">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6">
+          <p className="text-sm text-[var(--text-secondary)] mb-4">
             Você foi convidado para fazer parte da equipe de <span className="font-semibold">{info.company_name}</span>.
           </p>
           <div className="flex flex-col gap-3">
@@ -97,9 +101,9 @@ export default function InviteAccept({ token, onDone }) {
         </div>
       </div>
       <style>{`
-        .input { width: 100%; padding: 0.6rem 0.75rem; border-radius: 0.6rem; border: 1px solid #52525b; background-color: #27272a; color: #f4f4f5; font-size: 0.875rem; outline: none; color-scheme: dark; }
-        .input::placeholder { color: #a1a1aa; }
-        .input:focus { box-shadow: 0 0 0 2px #a1a1aa; border-color: #a1a1aa; }
+        .input { width: 100%; padding: 0.6rem 0.75rem; border-radius: 0.6rem; border: 1px solid var(--border); background-color: var(--surface); color: var(--text); font-size: 0.875rem; outline: none; }
+        .input::placeholder { color: var(--text-muted); }
+        .input:focus { box-shadow: 0 0 0 2px var(--text-muted); border-color: var(--text-muted); }
       `}</style>
     </div>
   );
@@ -108,7 +112,7 @@ export default function InviteAccept({ token, onDone }) {
 function Field({ label, children }) {
   return (
     <div>
-      <label className="text-xs font-medium text-zinc-300 mb-1 block">{label}</label>
+      <label className="text-xs font-medium text-[var(--text-secondary)] mb-1 block">{label}</label>
       {children}
     </div>
   );
