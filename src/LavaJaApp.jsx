@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./lib/db";
+import ThemeToggle from "./ThemeToggle.jsx";
 
 const genLocalId = () => Math.random().toString(36).slice(2, 9);
 const money = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -94,14 +95,14 @@ export default function LavaJaApp({ onLogout }) {
   }, [companyId, refetch]);
 
   if (loading) {
-    return <div className="min-h-screen bg-zinc-900 flex items-center justify-center text-zinc-400">Carregando...</div>;
+    return <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center text-[var(--text-secondary)]">Carregando...</div>;
   }
 
   if (blocked) {
     return (
-      <div className="min-h-screen bg-zinc-900 text-zinc-100 flex flex-col items-center justify-center gap-3 text-center px-4">
-        <p className="text-zinc-300 font-medium">Seu acesso foi bloqueado.</p>
-        <p className="text-sm text-zinc-300 max-w-sm">Fale com o responsável da empresa se achar que isso é um engano.</p>
+      <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] flex flex-col items-center justify-center gap-3 text-center px-4">
+        <p className="text-[var(--text-secondary)] font-medium">Seu acesso foi bloqueado.</p>
+        <p className="text-sm text-[var(--text-secondary)] max-w-sm">Fale com o responsável da empresa se achar que isso é um engano.</p>
         <button onClick={onLogout} className="mt-2 bg-zinc-600 hover:bg-zinc-500 text-white text-sm font-medium px-4 py-2.5 rounded-xl">
           Sair
         </button>
@@ -111,13 +112,13 @@ export default function LavaJaApp({ onLogout }) {
 
   if (!companyId) {
     return (
-      <div className="min-h-screen bg-zinc-900 text-zinc-100 flex flex-col items-center justify-center gap-3 text-center px-4">
-        <p className="text-zinc-300 font-medium">Não conseguimos encontrar sua empresa ainda.</p>
-        <p className="text-sm text-zinc-300 max-w-sm">Isso pode acontecer logo após criar a conta. Atualize a página em alguns segundos.</p>
-        <button onClick={() => window.location.reload()} className="mt-2 bg-zinc-600 hover:bg-zinc-800 text-white text-sm font-medium px-4 py-2.5 rounded-xl">
+      <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] flex flex-col items-center justify-center gap-3 text-center px-4">
+        <p className="text-[var(--text-secondary)] font-medium">Não conseguimos encontrar sua empresa ainda.</p>
+        <p className="text-sm text-[var(--text-secondary)] max-w-sm">Isso pode acontecer logo após criar a conta. Atualize a página em alguns segundos.</p>
+        <button onClick={() => window.location.reload()} className="mt-2 bg-zinc-600 hover:bg-[var(--surface)] text-white text-sm font-medium px-4 py-2.5 rounded-xl">
           Atualizar página
         </button>
-        <button onClick={onLogout} className="text-xs text-zinc-400 hover:text-zinc-300 mt-1">Sair</button>
+        <button onClick={onLogout} className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-secondary)] mt-1">Sair</button>
       </div>
     );
   }
@@ -137,13 +138,13 @@ export default function LavaJaApp({ onLogout }) {
   const activeTab = NAV.some((n) => n.id === tab) ? tab : "fila";
 
   return (
-    <div className="w-full min-h-screen bg-zinc-900 text-zinc-100 flex flex-col md:flex-row" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="w-full min-h-screen bg-[var(--bg)] text-[var(--text)] flex flex-col md:flex-row" style={{ fontFamily: "'Inter', sans-serif" }}>
       <style>{`
         .font-display { font-family: 'Space Grotesk', sans-serif; }
         .font-num { font-family: 'JetBrains Mono', monospace; }
-        .input { width: 100%; padding: 0.6rem 0.75rem; border-radius: 0.6rem; border: 1px solid #52525b; background-color: #27272a; color: #f4f4f5; font-size: 0.875rem; outline: none; color-scheme: dark; }
-        .input::placeholder { color: #a1a1aa; }
-        .input:focus { box-shadow: 0 0 0 2px #a1a1aa; border-color: #a1a1aa; }
+        .input { width: 100%; padding: 0.6rem 0.75rem; border-radius: 0.6rem; border: 1px solid var(--border); background-color: var(--surface); color: var(--text); font-size: 0.875rem; outline: none; }
+        .input::placeholder { color: var(--text-muted); }
+        .input:focus { box-shadow: 0 0 0 2px var(--text-muted); border-color: var(--text-muted); }
       `}</style>
 
       <div className="hidden md:flex md:flex-col w-56 shrink-0 bg-zinc-800 text-zinc-100 p-4">
@@ -169,12 +170,16 @@ export default function LavaJaApp({ onLogout }) {
         <button onClick={onLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-zinc-300/70 hover:bg-zinc-600/50">
           <LogOut size={18} /> Sair
         </button>
+        <div className="mt-3 flex justify-center">
+          <ThemeToggle variant="dark" />
+        </div>
       </div>
 
       <div className="md:hidden flex items-center gap-2 px-4 py-3 bg-zinc-800 text-zinc-100">
         <img src="/logo.png" alt="LavaJá" className="w-7 h-7 rounded-lg" />
         <span className="font-display font-semibold">LavaJá</span>
         <span className="text-xs text-zinc-400/70 truncate flex-1 text-right">{companyName}</span>
+        <ThemeToggle variant="dark" className="mr-1" />
         <button onClick={onLogout} className="text-zinc-400/80">
           <LogOut size={18} />
         </button>
@@ -216,7 +221,7 @@ function OrderCustomerLine({ data, order }) {
   return (
     <div>
       <p className="font-semibold text-sm">{vehicle ? vehicle.plate : "—"} · {vehicle?.model}</p>
-      <p className="text-xs text-zinc-300">{customer?.name}</p>
+      <p className="text-xs text-[var(--text-secondary)]">{customer?.name}</p>
     </div>
   );
 }
@@ -224,7 +229,7 @@ function OrderCustomerLine({ data, order }) {
 function OrderServicesLine({ data, order }) {
   const names = (order.service_ids || []).map((id) => data.services.find((s) => s.id === id)?.name).filter(Boolean);
   const extraNames = (order.extra_services || []).map((e) => e.name);
-  return <p className="text-xs text-zinc-300 truncate">{[...names, ...extraNames].join(", ")}</p>;
+  return <p className="text-xs text-[var(--text-secondary)] truncate">{[...names, ...extraNames].join(", ")}</p>;
 }
 
 function FilaView({ data, companyName, refetch, setModal }) {
@@ -244,7 +249,7 @@ function FilaView({ data, companyName, refetch, setModal }) {
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="font-display text-xl font-semibold">Fila do dia</h1>
-          <p className="text-sm text-zinc-300">{active.length} veículo(s) em atendimento</p>
+          <p className="text-sm text-[var(--text-secondary)]">{active.length} veículo(s) em atendimento</p>
         </div>
         <button onClick={() => setModal({ type: "novoCarro" })} className="flex items-center gap-1.5 bg-zinc-500 hover:bg-zinc-400 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-sm">
           <Plus size={16} /> Novo carro
@@ -255,26 +260,26 @@ function FilaView({ data, companyName, refetch, setModal }) {
         {columns.map((col) => {
           const items = active.filter((o) => o.status === col.key);
           return (
-            <div key={col.key} className="bg-zinc-800 rounded-2xl border border-zinc-700 p-3">
+            <div key={col.key} className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-3">
               <div className="flex items-center gap-2 mb-3 px-1">
-                <col.icon size={16} className="text-zinc-300" />
-                <span className="text-sm font-semibold text-zinc-300">{col.title}</span>
-                <span className="ml-auto text-xs font-num text-zinc-400">{items.length}</span>
+                <col.icon size={16} className="text-[var(--text-secondary)]" />
+                <span className="text-sm font-semibold text-[var(--text-secondary)]">{col.title}</span>
+                <span className="ml-auto text-xs font-num text-[var(--text-secondary)]">{items.length}</span>
               </div>
               <div className="flex flex-col gap-2 min-h-[80px]">
-                {items.length === 0 && <p className="text-xs text-zinc-400 px-1 py-4 text-center">Nenhum carro aqui</p>}
+                {items.length === 0 && <p className="text-xs text-[var(--text-secondary)] px-1 py-4 text-center">Nenhum carro aqui</p>}
                 {items.map((order) => {
                   const customer = data.customers.find((c) => c.id === order.customer_id);
                   const vehicle = customer?.vehicles.find((v) => v.id === order.vehicle_id);
                   const mensagem = `Olá${customer?.name ? ", " + customer.name.split(" ")[0] : ""}! Seu veículo${vehicle?.plate ? ` (${vehicle.plate})` : ""} já está pronto na ${companyName || "lavagem"}. Pode vir buscar quando quiser! 🚗✨`;
                   const link = waLink(customer?.phone, mensagem);
                   return (
-                    <div key={order.id} className="border border-zinc-700 rounded-xl p-3 bg-zinc-900">
+                    <div key={order.id} className="border border-[var(--border)] rounded-xl p-3 bg-[var(--bg)]">
                       <OrderCustomerLine data={data} order={order} />
                       <OrderServicesLine data={data} order={order} />
                       <div className="flex items-center justify-between mt-2">
-                        <span className="text-xs text-zinc-400">há {timeAgo(order.created_at)}</span>
-                        <span className="font-num text-sm font-semibold text-zinc-200">{money(order.total)}</span>
+                        <span className="text-xs text-[var(--text-secondary)]">há {timeAgo(order.created_at)}</span>
+                        <span className="font-num text-sm font-semibold text-[var(--text)]">{money(order.total)}</span>
                       </div>
                       <div className="mt-2 flex flex-col gap-1.5">
                         {col.key === "aguardando" && (
@@ -299,7 +304,7 @@ function FilaView({ data, companyName, refetch, setModal }) {
                                 <MessageCircle size={14} /> Avisar no WhatsApp
                               </a>
                             ) : (
-                              <p className="text-[11px] text-zinc-500 text-center">Cliente sem telefone cadastrado</p>
+                              <p className="text-[11px] text-[var(--text-muted)] text-center">Cliente sem telefone cadastrado</p>
                             )}
                             <button onClick={() => advance(order, "entregue")} className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-zinc-600 hover:bg-zinc-500 text-white rounded-lg py-2">
                               <Check size={14} /> Entregar
@@ -342,26 +347,26 @@ function AgendaView({ data, refetch, setModal }) {
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="font-display text-xl font-semibold">Agenda</h1>
-          <p className="text-sm text-zinc-300">{scheduled.length} agendamento(s)</p>
+          <p className="text-sm text-[var(--text-secondary)]">{scheduled.length} agendamento(s)</p>
         </div>
         <button onClick={() => setModal({ type: "novoAgendamento" })} className="flex items-center gap-1.5 bg-zinc-500 hover:bg-zinc-400 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-sm">
           <Plus size={16} /> Novo agendamento
         </button>
       </div>
 
-      {Object.keys(groups).length === 0 && <div className="text-center py-16 text-zinc-400 text-sm">Nenhum agendamento cadastrado</div>}
+      {Object.keys(groups).length === 0 && <div className="text-center py-16 text-[var(--text-secondary)] text-sm">Nenhum agendamento cadastrado</div>}
 
       <div className="flex flex-col gap-5">
         {Object.entries(groups).map(([date, items]) => (
           <div key={date}>
-            <p className="text-xs font-semibold uppercase text-zinc-400 mb-2 px-1">
+            <p className="text-xs font-semibold uppercase text-[var(--text-secondary)] mb-2 px-1">
               {new Date(date + "T00:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
               {date === todayStr() && " · hoje"}
             </p>
             <div className="flex flex-col gap-2">
               {items.map((order) => (
-                <div key={order.id} className="bg-zinc-800 border border-zinc-700 rounded-xl p-3 flex items-center gap-3">
-                  <div className="font-num text-sm font-semibold text-zinc-200 w-14 shrink-0">
+                <div key={order.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 flex items-center gap-3">
+                  <div className="font-num text-sm font-semibold text-[var(--text)] w-14 shrink-0">
                     {new Date(order.scheduled_time).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -370,7 +375,7 @@ function AgendaView({ data, refetch, setModal }) {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-num text-sm font-semibold">{money(order.total)}</p>
-                    <button onClick={() => checkIn(order)} className="mt-1 flex items-center gap-1 text-xs font-medium text-zinc-200 hover:text-zinc-100">
+                    <button onClick={() => checkIn(order)} className="mt-1 flex items-center gap-1 text-xs font-medium text-[var(--text)] hover:text-[var(--text)]">
                       <LogIn size={12} /> Check-in
                     </button>
                   </div>
@@ -400,7 +405,7 @@ function ClientesView({ data, companyId, refetch, setModal }) {
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="font-display text-xl font-semibold">Clientes</h1>
-          <p className="text-sm text-zinc-300">{data.customers.length} cliente(s) cadastrado(s)</p>
+          <p className="text-sm text-[var(--text-secondary)]">{data.customers.length} cliente(s) cadastrado(s)</p>
         </div>
         <button onClick={() => setModal({ type: "novoCliente" })} className="flex items-center gap-1.5 bg-zinc-500 hover:bg-zinc-400 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-sm">
           <Plus size={16} /> Novo cliente
@@ -408,25 +413,25 @@ function ClientesView({ data, companyId, refetch, setModal }) {
       </div>
 
       <div className="relative mb-4">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome, telefone ou placa" className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-zinc-700 text-sm bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome, telefone ou placa" className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[var(--border)] text-sm bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-zinc-400" />
       </div>
 
-      {filtered.length === 0 && <div className="text-center py-16 text-zinc-400 text-sm">Nenhum cliente encontrado</div>}
+      {filtered.length === 0 && <div className="text-center py-16 text-[var(--text-secondary)] text-sm">Nenhum cliente encontrado</div>}
 
       <div className="flex flex-col gap-2">
         {filtered.map((c) => (
-          <div key={c.id} className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
+          <div key={c.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
             <div className="flex items-start justify-between">
               <div>
                 <p className="font-semibold text-sm">{c.name}</p>
-                {c.phone && <p className="text-xs text-zinc-300 flex items-center gap-1 mt-0.5"><Phone size={11} /> {c.phone}</p>}
+                {c.phone && <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1 mt-0.5"><Phone size={11} /> {c.phone}</p>}
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => setModal({ type: "novoVeiculo", customerId: c.id })} className="text-xs font-medium text-zinc-200 hover:text-zinc-100 flex items-center gap-1">
+                <button onClick={() => setModal({ type: "novoVeiculo", customerId: c.id })} className="text-xs font-medium text-[var(--text)] hover:text-[var(--text)] flex items-center gap-1">
                   <Plus size={12} /> Veículo
                 </button>
-                <button onClick={() => removeCustomer(c.id)} className="text-zinc-500 hover:text-rose-400">
+                <button onClick={() => removeCustomer(c.id)} className="text-[var(--text-muted)] hover:text-rose-400">
                   <Trash2 size={15} />
                 </button>
               </div>
@@ -434,7 +439,7 @@ function ClientesView({ data, companyId, refetch, setModal }) {
             {c.vehicles.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {c.vehicles.map((v) => (
-                  <span key={v.id} className="text-xs bg-zinc-700 text-zinc-300 rounded-lg px-2.5 py-1">
+                  <span key={v.id} className="text-xs bg-zinc-700 text-[var(--text-secondary)] rounded-lg px-2.5 py-1">
                     {v.plate} · {v.model} {v.color ? `(${v.color})` : ""}
                   </span>
                 ))}
@@ -472,12 +477,12 @@ function ServicosView({ data, companyId, refetch, setModal }) {
   return (
     <div className="p-4 md:p-6">
       <h1 className="font-display text-xl font-semibold mb-1">Serviços</h1>
-      <p className="text-sm text-zinc-300 mb-5">{data.services.length} serviço(s) cadastrado(s)</p>
+      <p className="text-sm text-[var(--text-secondary)] mb-5">{data.services.length} serviço(s) cadastrado(s)</p>
 
-      <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4 mb-5 flex flex-col sm:flex-row gap-2">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do serviço" className="flex-1 px-3 py-2.5 rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
-        <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" placeholder="Preço" className="w-full sm:w-32 px-3 py-2.5 rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-100 text-sm font-num focus:outline-none focus:ring-2 focus:ring-zinc-400" />
-        <button onClick={add} className="flex items-center justify-center gap-1.5 bg-zinc-600 hover:bg-zinc-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-5 flex flex-col sm:flex-row gap-2">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do serviço" className="flex-1 px-3 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+        <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" placeholder="Preço" className="w-full sm:w-32 px-3 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm font-num focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+        <button onClick={add} className="flex items-center justify-center gap-1.5 bg-zinc-600 hover:bg-[var(--surface)] text-white text-sm font-medium px-4 py-2.5 rounded-lg">
           <Plus size={15} /> Adicionar
         </button>
       </div>
@@ -486,12 +491,12 @@ function ServicosView({ data, companyId, refetch, setModal }) {
         {data.services.map((s) => {
           const vinculos = data.serviceProducts.filter((sp) => sp.service_id === s.id);
           return (
-            <div key={s.id} className="bg-zinc-800 border border-zinc-700 rounded-xl p-3 flex items-center gap-3">
-              <Wrench size={16} className="text-zinc-400 shrink-0" />
+            <div key={s.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 flex items-center gap-3">
+              <Wrench size={16} className="text-[var(--text-secondary)] shrink-0" />
               <div className="flex-1 min-w-0">
                 <span className="text-sm font-medium">{s.name}</span>
                 {vinculos.length > 0 && (
-                  <p className="text-xs text-zinc-500 truncate">
+                  <p className="text-xs text-[var(--text-muted)] truncate">
                     Consome: {vinculos.map((v) => {
                       const p = data.products.find((pr) => pr.id === v.product_id);
                       return p ? `${v.quantity} ${p.unit} de ${p.name}` : null;
@@ -500,17 +505,17 @@ function ServicosView({ data, companyId, refetch, setModal }) {
                 )}
               </div>
               <div className="flex items-center gap-1 font-num text-sm">
-                <span className="text-zinc-400">R$</span>
-                <input defaultValue={s.price} onBlur={(e) => updatePrice(s.id, e.target.value)} type="number" className="w-20 px-2 py-1 rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-100 text-right focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+                <span className="text-[var(--text-secondary)]">R$</span>
+                <input defaultValue={s.price} onBlur={(e) => updatePrice(s.id, e.target.value)} type="number" className="w-20 px-2 py-1 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-right focus:outline-none focus:ring-2 focus:ring-zinc-400" />
               </div>
               <button
                 onClick={() => setModal({ type: "vincularProdutos", servico: s })}
                 title="Vincular produtos do estoque"
-                className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
+                className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-[var(--text)]"
               >
                 <Package size={15} />
               </button>
-              <button onClick={() => remove(s.id)} className="text-zinc-500 hover:text-rose-400">
+              <button onClick={() => remove(s.id)} className="text-[var(--text-muted)] hover:text-rose-400">
                 <Trash2 size={15} />
               </button>
             </div>
@@ -573,9 +578,9 @@ function FinanceiroView({ data, companyId, refetch }) {
     <div className="p-4 md:p-6">
       <div className="flex items-center justify-between mb-5">
         <h1 className="font-display text-xl font-semibold">Financeiro</h1>
-        <div className="flex gap-1 bg-zinc-800 border border-zinc-700 rounded-xl p-1">
+        <div className="flex gap-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-1">
           {[{ k: "hoje", l: "Hoje" }, { k: "7dias", l: "7 dias" }, { k: "todos", l: "Tudo" }].map((o) => (
-            <button key={o.k} onClick={() => setRange(o.k)} className={`text-xs font-medium px-3 py-1.5 rounded-lg ${range === o.k ? "bg-zinc-600 text-white" : "text-zinc-300"}`}>
+            <button key={o.k} onClick={() => setRange(o.k)} className={`text-xs font-medium px-3 py-1.5 rounded-lg ${range === o.k ? "bg-zinc-600 text-white" : "text-[var(--text-secondary)]"}`}>
               {o.l}
             </button>
           ))}
@@ -583,68 +588,68 @@ function FinanceiroView({ data, companyId, refetch }) {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
-          <p className="text-xs text-zinc-300 mb-1">Faturado</p>
-          <p className="font-num text-lg font-semibold text-zinc-200">{money(totalPago)}</p>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--text-secondary)] mb-1">Faturado</p>
+          <p className="font-num text-lg font-semibold text-[var(--text)]">{money(totalPago)}</p>
         </div>
-        <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
-          <p className="text-xs text-zinc-300 mb-1">A receber</p>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--text-secondary)] mb-1">A receber</p>
           <p className="font-num text-lg font-semibold text-amber-500">{money(totalPendente)}</p>
         </div>
-        <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
-          <p className="text-xs text-zinc-300 mb-1">Despesas</p>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--text-secondary)] mb-1">Despesas</p>
           <p className="font-num text-lg font-semibold text-rose-400">{money(totalDespesas)}</p>
         </div>
-        <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
-          <p className="text-xs text-zinc-300 mb-1">Lucro líquido</p>
-          <p className={`font-num text-lg font-semibold ${lucroLiquido >= 0 ? "text-zinc-200" : "text-rose-400"}`}>{money(lucroLiquido)}</p>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--text-secondary)] mb-1">Lucro líquido</p>
+          <p className={`font-num text-lg font-semibold ${lucroLiquido >= 0 ? "text-[var(--text)]" : "text-rose-400"}`}>{money(lucroLiquido)}</p>
         </div>
-        <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
-          <p className="text-xs text-zinc-300 mb-1">Lavagens</p>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--text-secondary)] mb-1">Lavagens</p>
           <p className="font-num text-lg font-semibold">{filteredOrders.length}</p>
         </div>
       </div>
 
-      <p className="text-xs font-semibold text-zinc-400 uppercase mb-2 px-1">Recebimentos</p>
-      {filteredOrders.length === 0 && <div className="text-center py-10 text-zinc-400 text-sm">Nenhuma lavagem concluída neste período</div>}
+      <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2 px-1">Recebimentos</p>
+      {filteredOrders.length === 0 && <div className="text-center py-10 text-[var(--text-secondary)] text-sm">Nenhuma lavagem concluída neste período</div>}
       <div className="flex flex-col gap-2 mb-6">
         {filteredOrders.map((order) => (
-          <div key={order.id} className="bg-zinc-800 border border-zinc-700 rounded-xl p-3 flex items-center gap-3">
+          <div key={order.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 flex items-center gap-3">
             <div className="flex-1 min-w-0">
               <OrderCustomerLine data={data} order={order} />
               <OrderServicesLine data={data} order={order} />
             </div>
             <span className="font-num text-sm font-semibold">{money(order.total)}</span>
-            <button onClick={() => toggle(order)} className={`text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1 ${order.paid ? "bg-zinc-700 text-zinc-100" : "bg-amber-950 text-amber-300"}`}>
+            <button onClick={() => toggle(order)} className={`text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1 ${order.paid ? "bg-zinc-700 text-[var(--text)]" : "bg-amber-950 text-amber-300"}`}>
               <Banknote size={12} /> {order.paid ? "Pago" : "Pendente"}
             </button>
           </div>
         ))}
       </div>
 
-      <p className="text-xs font-semibold text-zinc-400 uppercase mb-2 px-1">Despesas</p>
-      <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4 mb-4">
+      <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2 px-1">Despesas</p>
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-4">
         <div className="flex flex-col sm:flex-row gap-2">
-          <input value={expDesc} onChange={(e) => setExpDesc(e.target.value)} placeholder="Descrição (ex: produtos de limpeza)" className="flex-1 px-3 py-2.5 rounded-lg border border-zinc-700 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
-          <input value={expValor} onChange={(e) => setExpValor(e.target.value)} type="number" placeholder="Valor" className="w-full sm:w-28 px-3 py-2.5 rounded-lg border border-zinc-700 text-sm font-num focus:outline-none focus:ring-2 focus:ring-zinc-400" />
-          <input value={expData} onChange={(e) => setExpData(e.target.value)} type="date" className="w-full sm:w-40 px-3 py-2.5 rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" style={{ colorScheme: "dark" }} />
+          <input value={expDesc} onChange={(e) => setExpDesc(e.target.value)} placeholder="Descrição (ex: produtos de limpeza)" className="flex-1 px-3 py-2.5 rounded-lg border border-[var(--border)] text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+          <input value={expValor} onChange={(e) => setExpValor(e.target.value)} type="number" placeholder="Valor" className="w-full sm:w-28 px-3 py-2.5 rounded-lg border border-[var(--border)] text-sm font-num focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+          <input value={expData} onChange={(e) => setExpData(e.target.value)} type="date" className="w-full sm:w-40 px-3 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
           <button onClick={addExpense} className="flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg">
             <Plus size={15} /> Adicionar
           </button>
         </div>
       </div>
 
-      {filteredExpenses.length === 0 && <div className="text-center py-10 text-zinc-400 text-sm">Nenhuma despesa neste período</div>}
+      {filteredExpenses.length === 0 && <div className="text-center py-10 text-[var(--text-secondary)] text-sm">Nenhuma despesa neste período</div>}
       <div className="flex flex-col gap-2">
         {filteredExpenses.map((exp) => (
-          <div key={exp.id} className="bg-zinc-800 border border-zinc-700 rounded-xl p-3 flex items-center gap-3">
+          <div key={exp.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 flex items-center gap-3">
             <TrendingDown size={16} className="text-rose-400 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium">{exp.description}</p>
-              <p className="text-xs text-zinc-400">{new Date(exp.expense_date + "T00:00:00").toLocaleDateString("pt-BR")}</p>
+              <p className="text-xs text-[var(--text-secondary)]">{new Date(exp.expense_date + "T00:00:00").toLocaleDateString("pt-BR")}</p>
             </div>
             <span className="font-num text-sm font-semibold text-rose-400">{money(exp.amount)}</span>
-            <button onClick={() => removeExpense(exp.id)} className="text-zinc-500 hover:text-rose-400">
+            <button onClick={() => removeExpense(exp.id)} className="text-[var(--text-muted)] hover:text-rose-400">
               <Trash2 size={15} />
             </button>
           </div>
@@ -745,51 +750,51 @@ function RelatoriosView({ data }) {
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <h1 className="font-display text-xl font-semibold">Relatórios</h1>
         <div className="flex items-center gap-2 flex-wrap">
-          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-100 text-sm" style={{ colorScheme: "dark" }} />
-          <span className="text-zinc-400 text-sm">até</span>
-          <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-100 text-sm" style={{ colorScheme: "dark" }} />
-          <button onClick={baixarCsv} className="flex items-center gap-1.5 bg-zinc-600 hover:bg-zinc-800 text-white text-sm font-medium px-4 py-2.5 rounded-xl">
+          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] text-sm" />
+          <span className="text-[var(--text-secondary)] text-sm">até</span>
+          <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] text-sm" />
+          <button onClick={baixarCsv} className="flex items-center gap-1.5 bg-zinc-600 hover:bg-[var(--surface)] text-white text-sm font-medium px-4 py-2.5 rounded-xl">
             <Download size={15} /> Baixar CSV
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
-          <p className="text-xs text-zinc-300 mb-1">Faturado</p>
-          <p className="font-num text-lg font-semibold text-zinc-200">{money(totalFaturado)}</p>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--text-secondary)] mb-1">Faturado</p>
+          <p className="font-num text-lg font-semibold text-[var(--text)]">{money(totalFaturado)}</p>
         </div>
-        <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
-          <p className="text-xs text-zinc-300 mb-1">Despesas</p>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--text-secondary)] mb-1">Despesas</p>
           <p className="font-num text-lg font-semibold text-rose-400">{money(totalDespesas)}</p>
         </div>
-        <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
-          <p className="text-xs text-zinc-300 mb-1">Lucro líquido</p>
-          <p className={`font-num text-lg font-semibold ${lucroLiquido >= 0 ? "text-zinc-200" : "text-rose-400"}`}>{money(lucroLiquido)}</p>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--text-secondary)] mb-1">Lucro líquido</p>
+          <p className={`font-num text-lg font-semibold ${lucroLiquido >= 0 ? "text-[var(--text)]" : "text-rose-400"}`}>{money(lucroLiquido)}</p>
         </div>
-        <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
-          <p className="text-xs text-zinc-300 mb-1">Lavagens</p>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--text-secondary)] mb-1">Lavagens</p>
           <p className="font-num text-lg font-semibold">{ordersInRange.length}</p>
         </div>
-        <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
-          <p className="text-xs text-zinc-300 mb-1">Ticket médio</p>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--text-secondary)] mb-1">Ticket médio</p>
           <p className="font-num text-lg font-semibold">{money(ticketMedio)}</p>
         </div>
       </div>
 
-      <p className="text-xs font-semibold text-zinc-400 uppercase mb-2 px-1">Serviços mais pedidos no período</p>
-      {rankingServicos.length === 0 && <p className="text-sm text-zinc-400 mb-6">Nenhum serviço registrado nesse período</p>}
+      <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2 px-1">Serviços mais pedidos no período</p>
+      {rankingServicos.length === 0 && <p className="text-sm text-[var(--text-secondary)] mb-6">Nenhum serviço registrado nesse período</p>}
       <div className="flex flex-col gap-2">
         {rankingServicos.map(([nome, info]) => (
           <button
             key={nome}
             onClick={() => setServicoSelecionado(nome)}
-            className="bg-zinc-800 border border-zinc-700 rounded-xl p-3 flex items-center gap-3 text-left hover:border-zinc-500 hover:bg-zinc-700/40 transition"
+            className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 flex items-center gap-3 text-left hover:border-zinc-500 hover:bg-zinc-700/40 transition"
           >
             <span className="flex-1 text-sm font-medium">{nome}</span>
-            <span className="font-num text-sm text-zinc-300">{info.qtd}x</span>
-            <span className="font-num text-sm font-semibold text-zinc-200">{money(info.total)}</span>
-            <ChevronRight size={16} className="text-zinc-500" />
+            <span className="font-num text-sm text-[var(--text-secondary)]">{info.qtd}x</span>
+            <span className="font-num text-sm font-semibold text-[var(--text)]">{money(info.total)}</span>
+            <ChevronRight size={16} className="text-[var(--text-muted)]" />
           </button>
         ))}
       </div>
@@ -809,32 +814,32 @@ function ServicoDetalheModal({ nome, info, onClose }) {
   const ocorrencias = [...(info?.ocorrencias || [])].sort((a, b) => new Date(b.data) - new Date(a.data));
   return (
     <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bg-zinc-800 w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-700 sticky top-0 bg-zinc-800">
+      <div className="bg-[var(--surface)] w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)] sticky top-0 bg-[var(--surface)]">
           <h2 className="font-display font-semibold text-base">{nome}</h2>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-300">
+          <button onClick={onClose} className="text-[var(--text-secondary)] hover:text-[var(--text-secondary)]">
             <X size={20} />
           </button>
         </div>
         <div className="p-5">
           <div className="grid grid-cols-2 gap-3 mb-5">
-            <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-3">
-              <p className="text-xs text-zinc-300 mb-1">Vezes pedido</p>
+            <div className="bg-[var(--bg)] border border-[var(--border)] rounded-xl p-3">
+              <p className="text-xs text-[var(--text-secondary)] mb-1">Vezes pedido</p>
               <p className="font-num text-lg font-semibold">{info?.qtd || 0}x</p>
             </div>
-            <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-3">
-              <p className="text-xs text-zinc-300 mb-1">Total gerado</p>
-              <p className="font-num text-lg font-semibold text-zinc-200">{money(info?.total || 0)}</p>
+            <div className="bg-[var(--bg)] border border-[var(--border)] rounded-xl p-3">
+              <p className="text-xs text-[var(--text-secondary)] mb-1">Total gerado</p>
+              <p className="font-num text-lg font-semibold text-[var(--text)]">{money(info?.total || 0)}</p>
             </div>
           </div>
 
-          <p className="text-xs font-semibold text-zinc-400 uppercase mb-2">Lavagens com esse serviço</p>
+          <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2">Lavagens com esse serviço</p>
           <div className="flex flex-col gap-2">
             {ocorrencias.map((o, i) => (
-              <div key={i} className="border border-zinc-700 rounded-xl p-3 flex items-center gap-3">
+              <div key={i} className="border border-[var(--border)] rounded-xl p-3 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{o.cliente} · {o.placa}</p>
-                  <p className="text-xs text-zinc-400">{new Date(o.data).toLocaleDateString("pt-BR")}</p>
+                  <p className="text-xs text-[var(--text-secondary)]">{new Date(o.data).toLocaleDateString("pt-BR")}</p>
                 </div>
                 <span className="font-num text-sm font-semibold">{money(o.valor)}</span>
               </div>
@@ -862,7 +867,7 @@ function EstoqueView({ data, companyId, refetch, setModal }) {
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="font-display text-xl font-semibold">Estoque</h1>
-          <p className="text-sm text-zinc-400">{produtos.length} produto(s) cadastrado(s)</p>
+          <p className="text-sm text-[var(--text-secondary)]">{produtos.length} produto(s) cadastrado(s)</p>
         </div>
         <button onClick={() => setModal({ type: "novoProduto" })} className="flex items-center gap-1.5 bg-zinc-600 hover:bg-zinc-500 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-sm">
           <Plus size={16} /> Novo produto
@@ -878,39 +883,39 @@ function EstoqueView({ data, companyId, refetch, setModal }) {
         </div>
       )}
 
-      {produtos.length === 0 && <div className="text-center py-16 text-zinc-500 text-sm">Nenhum produto cadastrado ainda</div>}
+      {produtos.length === 0 && <div className="text-center py-16 text-[var(--text-muted)] text-sm">Nenhum produto cadastrado ainda</div>}
 
       <div className="flex flex-col gap-2">
         {produtos.map((p) => {
           const baixo = Number(p.quantity) <= Number(p.min_quantity);
           return (
-            <div key={p.id} className={`bg-zinc-800 border rounded-xl p-3 flex items-center gap-3 ${baixo ? "border-amber-800" : "border-zinc-700"}`}>
-              <Package size={18} className={`shrink-0 ${baixo ? "text-amber-400" : "text-zinc-500"}`} />
+            <div key={p.id} className={`bg-[var(--surface)] border rounded-xl p-3 flex items-center gap-3 ${baixo ? "border-amber-800" : "border-[var(--border)]"}`}>
+              <Package size={18} className={`shrink-0 ${baixo ? "text-amber-400" : "text-[var(--text-muted)]"}`} />
               <button onClick={() => setModal({ type: "historicoEstoque", produto: p })} className="flex-1 min-w-0 text-left">
                 <p className="text-sm font-medium truncate hover:underline">{p.name}</p>
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-[var(--text-muted)]">
                   Mínimo: {p.min_quantity} {p.unit}
                 </p>
               </button>
-              <span className={`font-num text-sm font-semibold shrink-0 ${baixo ? "text-amber-400" : "text-zinc-100"}`}>
+              <span className={`font-num text-sm font-semibold shrink-0 ${baixo ? "text-amber-400" : "text-[var(--text)]"}`}>
                 {p.quantity} {p.unit}
               </span>
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={() => setModal({ type: "movimentoEstoque", produto: p, tipo: "entrada" })}
                   title="Registrar entrada"
-                  className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
+                  className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-[var(--text)]"
                 >
                   <ArrowUpCircle size={16} />
                 </button>
                 <button
                   onClick={() => setModal({ type: "movimentoEstoque", produto: p, tipo: "saida" })}
                   title="Registrar saída"
-                  className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
+                  className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-[var(--text)]"
                 >
                   <ArrowDownCircle size={16} />
                 </button>
-                <button onClick={() => remove(p)} title="Remover produto" className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-400">
+                <button onClick={() => remove(p)} title="Remover produto" className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-rose-400">
                   <Trash2 size={15} />
                 </button>
               </div>
@@ -971,8 +976,8 @@ function MovimentoEstoqueModal({ companyId, refetch, close, produto, tipo }) {
   return (
     <ModalShell title={isEntrada ? `Entrada — ${produto.name}` : `Saída — ${produto.name}`} onClose={close}>
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-zinc-400">
-          Estoque atual: <span className="font-semibold text-zinc-100">{produto.quantity} {produto.unit}</span>
+        <p className="text-sm text-[var(--text-secondary)]">
+          Estoque atual: <span className="font-semibold text-[var(--text)]">{produto.quantity} {produto.unit}</span>
         </p>
         <Field label={`Quantidade (${produto.unit})`}>
           <input value={quantity} onChange={(e) => setQuantity(e.target.value)} type="number" className="input" autoFocus />
@@ -1000,11 +1005,11 @@ function HistoricoEstoqueModal({ produto, close }) {
 
   return (
     <ModalShell title={`Histórico — ${produto.name}`} onClose={close}>
-      {movs === null && <p className="text-sm text-zinc-500">Carregando...</p>}
-      {movs?.length === 0 && <p className="text-sm text-zinc-500">Nenhuma movimentação registrada ainda.</p>}
+      {movs === null && <p className="text-sm text-[var(--text-muted)]">Carregando...</p>}
+      {movs?.length === 0 && <p className="text-sm text-[var(--text-muted)]">Nenhuma movimentação registrada ainda.</p>}
       <div className="flex flex-col gap-2">
         {movs?.map((m) => (
-          <div key={m.id} className="border border-zinc-700 rounded-xl p-3 flex items-center gap-3">
+          <div key={m.id} className="border border-[var(--border)] rounded-xl p-3 flex items-center gap-3">
             {m.type === "entrada" ? (
               <ArrowUpCircle size={16} className="text-emerald-400 shrink-0" />
             ) : (
@@ -1012,9 +1017,9 @@ function HistoricoEstoqueModal({ produto, close }) {
             )}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium">{m.type === "entrada" ? "Entrada" : "Saída"} de {m.quantity} {produto.unit}</p>
-              {m.note && <p className="text-xs text-zinc-500 truncate">{m.note}</p>}
+              {m.note && <p className="text-xs text-[var(--text-muted)] truncate">{m.note}</p>}
             </div>
-            <span className="text-xs text-zinc-500 shrink-0">{new Date(m.created_at).toLocaleDateString("pt-BR")}</span>
+            <span className="text-xs text-[var(--text-muted)] shrink-0">{new Date(m.created_at).toLocaleDateString("pt-BR")}</span>
           </div>
         ))}
       </div>
@@ -1043,7 +1048,7 @@ function VincularProdutosModal({ data, companyId, refetch, close, servico }) {
   return (
     <ModalShell title={`Produtos usados — ${servico.name}`} onClose={close}>
       <div className="flex flex-col gap-3">
-        <p className="text-xs text-zinc-400">
+        <p className="text-xs text-[var(--text-secondary)]">
           Toda vez que esse serviço for usado num carro da fila, os produtos abaixo são descontados do estoque automaticamente.
         </p>
 
@@ -1069,15 +1074,15 @@ function VincularProdutosModal({ data, companyId, refetch, close, servico }) {
         )}
 
         <div className="flex flex-col gap-2 mt-1">
-          {vinculos.length === 0 && <p className="text-sm text-zinc-500">Nenhum produto vinculado ainda.</p>}
+          {vinculos.length === 0 && <p className="text-sm text-[var(--text-muted)]">Nenhum produto vinculado ainda.</p>}
           {vinculos.map((v) => {
             const p = data.products.find((pr) => pr.id === v.product_id);
             return (
-              <div key={v.id} className="border border-zinc-700 rounded-xl p-3 flex items-center gap-3">
-                <Package size={15} className="text-zinc-400 shrink-0" />
+              <div key={v.id} className="border border-[var(--border)] rounded-xl p-3 flex items-center gap-3">
+                <Package size={15} className="text-[var(--text-secondary)] shrink-0" />
                 <span className="flex-1 text-sm">{p ? p.name : "Produto removido"}</span>
-                <span className="font-num text-sm text-zinc-400">{v.quantity} {p?.unit || ""}</span>
-                <button onClick={() => remove(v.id)} className="text-zinc-500 hover:text-rose-400">
+                <span className="font-num text-sm text-[var(--text-secondary)]">{v.quantity} {p?.unit || ""}</span>
+                <button onClick={() => remove(v.id)} className="text-[var(--text-muted)] hover:text-rose-400">
                   <X size={15} />
                 </button>
               </div>
@@ -1130,15 +1135,15 @@ function ComissoesView({ data }) {
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <h1 className="font-display text-xl font-semibold">Comissões</h1>
         <div className="flex items-center gap-2 flex-wrap">
-          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-100 text-sm" style={{ colorScheme: "dark" }} />
-          <span className="text-zinc-400 text-sm">até</span>
-          <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-100 text-sm" style={{ colorScheme: "dark" }} />
+          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] text-sm" />
+          <span className="text-[var(--text-secondary)] text-sm">até</span>
+          <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] text-sm" />
         </div>
       </div>
 
-      <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4 mb-5">
-        <p className="text-xs text-zinc-500 mb-1">Total a pagar de comissão no período</p>
-        <p className="font-num text-2xl font-semibold text-zinc-100">{money(totalComissoes)}</p>
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-5">
+        <p className="text-xs text-[var(--text-muted)] mb-1">Total a pagar de comissão no período</p>
+        <p className="font-num text-2xl font-semibold text-[var(--text)]">{money(totalComissoes)}</p>
       </div>
 
       {semAtendente > 0 && (
@@ -1151,22 +1156,22 @@ function ComissoesView({ data }) {
       )}
 
       {linhas.length === 0 && (
-        <p className="text-sm text-zinc-500 text-center py-10">
+        <p className="text-sm text-[var(--text-muted)] text-center py-10">
           Nenhum funcionário com comissão configurada ou lavagens no período. Defina a % de cada um na aba Equipe.
         </p>
       )}
 
       <div className="flex flex-col gap-2">
         {linhas.map((l) => (
-          <div key={l.membro.id} className="bg-zinc-800 border border-zinc-700 rounded-xl p-3 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-zinc-700 text-zinc-100 flex items-center justify-center text-xs font-semibold shrink-0">
+          <div key={l.membro.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-zinc-700 text-[var(--text)] flex items-center justify-center text-xs font-semibold shrink-0">
               {(l.membro.full_name || "?").slice(0, 1).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{l.membro.full_name || "Sem nome"}</p>
-              <p className="text-xs text-zinc-500">{l.qtd} lavagem(ns) · {money(l.total)} faturado · {l.taxa}% de comissão</p>
+              <p className="text-xs text-[var(--text-muted)]">{l.qtd} lavagem(ns) · {money(l.total)} faturado · {l.taxa}% de comissão</p>
             </div>
-            <span className="font-num text-base font-semibold text-zinc-100 shrink-0">{money(l.comissao)}</span>
+            <span className="font-num text-base font-semibold text-[var(--text)] shrink-0">{money(l.comissao)}</span>
           </div>
         ))}
       </div>
@@ -1225,32 +1230,32 @@ function EquipeView({ companyId }) {
 
   const pendentes = invites.filter((i) => !i.used_by);
 
-  if (loading) return <div className="p-6 text-zinc-400 text-sm">Carregando...</div>;
+  if (loading) return <div className="p-6 text-[var(--text-secondary)] text-sm">Carregando...</div>;
 
   return (
     <div className="p-4 md:p-6">
       <h1 className="font-display text-xl font-semibold mb-1">Equipe</h1>
-      <p className="text-sm text-zinc-300 mb-5">{team.length} pessoa(s) com acesso ao painel</p>
+      <p className="text-sm text-[var(--text-secondary)] mb-5">{team.length} pessoa(s) com acesso ao painel</p>
 
-      <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4 mb-5">
-        <p className="text-xs font-semibold text-zinc-400 uppercase mb-2">Convidar funcionário</p>
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-5">
+        <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2">Convidar funcionário</p>
         <div className="flex flex-col sm:flex-row gap-2">
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="E-mail do funcionário (opcional)"
-            className="flex-1 px-3 py-2.5 rounded-lg border border-zinc-700 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
+            className="flex-1 px-3 py-2.5 rounded-lg border border-[var(--border)] text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
           />
-          <button onClick={gerarConvite} className="flex items-center justify-center gap-1.5 bg-zinc-600 hover:bg-zinc-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg">
+          <button onClick={gerarConvite} className="flex items-center justify-center gap-1.5 bg-zinc-600 hover:bg-[var(--surface)] text-white text-sm font-medium px-4 py-2.5 rounded-lg">
             <UserPlus size={15} /> Gerar link de convite
           </button>
         </div>
-        <p className="text-xs text-zinc-400 mt-2">Gere o link e envie por WhatsApp, e-mail ou onde preferir. Ele funciona uma única vez.</p>
+        <p className="text-xs text-[var(--text-secondary)] mt-2">Gere o link e envie por WhatsApp, e-mail ou onde preferir. Ele funciona uma única vez.</p>
       </div>
 
       {pendentes.length > 0 && (
         <div className="mb-5">
-          <p className="text-xs font-semibold text-zinc-400 uppercase mb-2 px-1">Convites pendentes</p>
+          <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2 px-1">Convites pendentes</p>
           <div className="flex flex-col gap-2">
             {pendentes.map((inv) => (
               <div key={inv.id} className="border border-amber-800 bg-amber-950 rounded-xl p-3 flex items-center gap-3">
@@ -1265,38 +1270,38 @@ function EquipeView({ companyId }) {
         </div>
       )}
 
-      <p className="text-xs font-semibold text-zinc-400 uppercase mb-2 px-1">Membros da equipe</p>
+      <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2 px-1">Membros da equipe</p>
       <div className="flex flex-col gap-2">
         {team.map((p) => (
-          <div key={p.id} className={`bg-zinc-800 border rounded-xl p-3 flex items-center gap-3 ${p.blocked ? "border-rose-800 bg-rose-950/40" : "border-zinc-700"}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${p.blocked ? "bg-rose-950 text-rose-400" : "bg-zinc-700 text-zinc-100"}`}>
+          <div key={p.id} className={`bg-[var(--surface)] border rounded-xl p-3 flex items-center gap-3 ${p.blocked ? "border-rose-800 bg-rose-950/40" : "border-[var(--border)]"}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${p.blocked ? "bg-rose-950 text-rose-400" : "bg-zinc-700 text-[var(--text)]"}`}>
               {(p.full_name || "?").slice(0, 1).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{p.full_name || "Sem nome"}</p>
-              <span className="text-xs text-zinc-400 capitalize">
+              <span className="text-xs text-[var(--text-secondary)] capitalize">
                 {p.role === "owner" ? "dono" : "funcionário"}
                 {p.blocked && <span className="text-rose-400 font-medium"> · bloqueado</span>}
               </span>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <label className="text-xs text-zinc-500">Comissão</label>
+              <label className="text-xs text-[var(--text-muted)]">Comissão</label>
               <input
                 defaultValue={p.commission_rate}
                 onBlur={(e) => salvarComissao(p, e.target.value)}
                 type="number"
                 min="0"
                 max="100"
-                className="w-16 px-2 py-1 rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-100 text-sm text-right focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                className="w-16 px-2 py-1 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm text-right focus:outline-none focus:ring-2 focus:ring-zinc-400"
               />
-              <span className="text-xs text-zinc-500">%</span>
+              <span className="text-xs text-[var(--text-muted)]">%</span>
             </div>
             {p.role !== "owner" && (
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={() => alternarBloqueio(p)}
                   title={p.blocked ? "Desbloquear acesso" : "Bloquear acesso"}
-                  className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg ${p.blocked ? "bg-zinc-700 text-zinc-100 hover:bg-zinc-600" : "bg-amber-950 text-amber-300 hover:bg-amber-800"}`}
+                  className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg ${p.blocked ? "bg-zinc-700 text-[var(--text)] hover:bg-zinc-600" : "bg-amber-950 text-amber-300 hover:bg-amber-800"}`}
                 >
                   {p.blocked ? <ShieldCheck size={13} /> : <ShieldOff size={13} />}
                   {p.blocked ? "Desbloquear" : "Bloquear"}
@@ -1304,7 +1309,7 @@ function EquipeView({ companyId }) {
                 <button
                   onClick={() => removerMembro(p)}
                   title="Remover da equipe"
-                  className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-zinc-700 text-zinc-300 hover:bg-rose-950 hover:text-rose-400"
+                  className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-zinc-700 text-[var(--text-secondary)] hover:bg-rose-950 hover:text-rose-400"
                 >
                   <UserX size={13} />
                 </button>
@@ -1320,10 +1325,10 @@ function EquipeView({ companyId }) {
 function ModalShell({ title, onClose, children }) {
   return (
     <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bg-zinc-800 w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-700 sticky top-0 bg-zinc-800">
+      <div className="bg-[var(--surface)] w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)] sticky top-0 bg-[var(--surface)]">
           <h2 className="font-display font-semibold text-base">{title}</h2>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-300">
+          <button onClick={onClose} className="text-[var(--text-secondary)] hover:text-[var(--text-secondary)]">
             <X size={20} />
           </button>
         </div>
@@ -1369,11 +1374,11 @@ function NovoClienteModal({ data, companyId, refetch, close }) {
       <div className="flex flex-col gap-3">
         <Field label="Nome"><input value={name} onChange={(e) => setName(e.target.value)} className="input" /></Field>
         <Field label="Telefone"><input value={phone} onChange={(e) => setPhone(e.target.value)} className="input" /></Field>
-        <p className="text-xs font-semibold text-zinc-400 uppercase mt-2">Veículo (opcional)</p>
+        <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mt-2">Veículo (opcional)</p>
         <Field label="Placa"><input value={plate} onChange={(e) => setPlate(e.target.value)} className="input" /></Field>
         <Field label="Modelo"><input value={model} onChange={(e) => setModel(e.target.value)} className="input" /></Field>
         <Field label="Cor"><input value={color} onChange={(e) => setColor(e.target.value)} className="input" /></Field>
-        <button onClick={save} className="mt-2 bg-zinc-600 hover:bg-zinc-800 text-white font-medium text-sm py-3 rounded-xl">Salvar cliente</button>
+        <button onClick={save} className="mt-2 bg-zinc-600 hover:bg-[var(--surface)] text-white font-medium text-sm py-3 rounded-xl">Salvar cliente</button>
       </div>
     </ModalShell>
   );
@@ -1397,7 +1402,7 @@ function NovoVeiculoModal({ companyId, refetch, close, customerId }) {
         <Field label="Placa"><input value={plate} onChange={(e) => setPlate(e.target.value)} className="input" /></Field>
         <Field label="Modelo"><input value={model} onChange={(e) => setModel(e.target.value)} className="input" /></Field>
         <Field label="Cor"><input value={color} onChange={(e) => setColor(e.target.value)} className="input" /></Field>
-        <button onClick={save} className="mt-2 bg-zinc-600 hover:bg-zinc-800 text-white font-medium text-sm py-3 rounded-xl">Salvar veículo</button>
+        <button onClick={save} className="mt-2 bg-zinc-600 hover:bg-[var(--surface)] text-white font-medium text-sm py-3 rounded-xl">Salvar veículo</button>
       </div>
     </ModalShell>
   );
@@ -1498,8 +1503,8 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
       <div className="flex flex-col gap-3">
         {data.customers.length > 0 && (
           <div className="flex gap-2 mb-1">
-            <button onClick={() => setNewCustomerMode(false)} className={`flex-1 text-xs font-medium py-2 rounded-lg ${!newCustomerMode ? "bg-zinc-600 text-white" : "bg-zinc-700 text-zinc-300"}`}>Cliente existente</button>
-            <button onClick={() => setNewCustomerMode(true)} className={`flex-1 text-xs font-medium py-2 rounded-lg ${newCustomerMode ? "bg-zinc-600 text-white" : "bg-zinc-700 text-zinc-300"}`}>Novo cliente</button>
+            <button onClick={() => setNewCustomerMode(false)} className={`flex-1 text-xs font-medium py-2 rounded-lg ${!newCustomerMode ? "bg-zinc-600 text-white" : "bg-zinc-700 text-[var(--text-secondary)]"}`}>Cliente existente</button>
+            <button onClick={() => setNewCustomerMode(true)} className={`flex-1 text-xs font-medium py-2 rounded-lg ${newCustomerMode ? "bg-zinc-600 text-white" : "bg-zinc-700 text-[var(--text-secondary)]"}`}>Novo cliente</button>
           </div>
         )}
 
@@ -1551,19 +1556,19 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
           </select>
         </Field>
 
-        <p className="text-xs font-semibold text-zinc-400 uppercase mt-2">Serviços</p>
+        <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mt-2">Serviços</p>
         <div className="flex flex-col gap-1.5">
           {data.services.map((s) => (
-            <label key={s.id} className="flex items-center gap-2 border border-zinc-700 rounded-lg px-3 py-2 cursor-pointer">
+            <label key={s.id} className="flex items-center gap-2 border border-[var(--border)] rounded-lg px-3 py-2 cursor-pointer">
               <input type="checkbox" checked={serviceIds.includes(s.id)} onChange={() => toggleService(s.id)} />
               <span className="flex-1 text-sm">{s.name}</span>
-              <span className="font-num text-sm text-zinc-300">{money(s.price)}</span>
+              <span className="font-num text-sm text-[var(--text-secondary)]">{money(s.price)}</span>
             </label>
           ))}
         </div>
 
-        <p className="text-xs font-semibold text-zinc-400 uppercase mt-2">Serviço avulso</p>
-        <p className="text-xs text-zinc-400 -mt-2">Use para um serviço fora da lista, com valor livre</p>
+        <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mt-2">Serviço avulso</p>
+        <p className="text-xs text-[var(--text-secondary)] -mt-2">Use para um serviço fora da lista, com valor livre</p>
         <div className="flex flex-col gap-2">
           <input value={extraName} onChange={(e) => setExtraName(e.target.value)} placeholder="Descrição do serviço" className="input" />
           <div className="flex gap-2">
@@ -1587,9 +1592,9 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
           </div>
         )}
 
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-700">
-          <span className="text-sm text-zinc-300">Total</span>
-          <span className="font-num text-lg font-semibold text-zinc-200">{money(total)}</span>
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border)]">
+          <span className="text-sm text-[var(--text-secondary)]">Total</span>
+          <span className="font-num text-lg font-semibold text-[var(--text)]">{money(total)}</span>
         </div>
 
         {error && <p className="text-xs text-rose-400">{error}</p>}
@@ -1609,7 +1614,7 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
 function Field({ label, children }) {
   return (
     <div>
-      <label className="text-xs font-medium text-zinc-300 mb-1 block">{label}</label>
+      <label className="text-xs font-medium text-[var(--text-secondary)] mb-1 block">{label}</label>
       {children}
     </div>
   );
