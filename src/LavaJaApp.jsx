@@ -471,7 +471,7 @@ function ClientesView({ data, companyId, refetch, setModal }) {
             {c.vehicles.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {c.vehicles.map((v) => (
-                  <span key={v.id} className="text-xs bg-zinc-700 text-[var(--text-secondary)] rounded-lg px-2.5 py-1">
+                  <span key={v.id} className="text-xs bg-zinc-700 text-zinc-300 rounded-lg px-2.5 py-1">
                     {v.plate} · {v.model} {v.color ? `(${v.color})` : ""}
                   </span>
                 ))}
@@ -543,7 +543,7 @@ function ServicosView({ data, companyId, refetch, setModal }) {
               <button
                 onClick={() => setModal({ type: "vincularProdutos", servico: s })}
                 title="Vincular produtos do estoque"
-                className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-[var(--text)]"
+                className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
               >
                 <Package size={15} />
               </button>
@@ -652,7 +652,7 @@ function FinanceiroView({ data, companyId, refetch }) {
               <OrderServicesLine data={data} order={order} />
             </div>
             <span className="font-num text-sm font-semibold">{money(order.total)}</span>
-            <button onClick={() => toggle(order)} className={`text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1 ${order.paid ? "bg-zinc-700 text-[var(--text)]" : "bg-amber-950 text-amber-300"}`}>
+            <button onClick={() => toggle(order)} className={`text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1 ${order.paid ? "bg-zinc-700 text-zinc-100" : "bg-amber-950 text-amber-300"}`}>
               <Banknote size={12} /> {order.paid ? "Pago" : "Pendente"}
             </button>
           </div>
@@ -936,14 +936,14 @@ function EstoqueView({ data, companyId, refetch, setModal }) {
                 <button
                   onClick={() => setModal({ type: "movimentoEstoque", produto: p, tipo: "entrada" })}
                   title="Registrar entrada"
-                  className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-[var(--text)]"
+                  className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
                 >
                   <ArrowUpCircle size={16} />
                 </button>
                 <button
                   onClick={() => setModal({ type: "movimentoEstoque", produto: p, tipo: "saida" })}
                   title="Registrar saída"
-                  className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-[var(--text)]"
+                  className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
                 >
                   <ArrowDownCircle size={16} />
                 </button>
@@ -1196,7 +1196,7 @@ function ComissoesView({ data }) {
       <div className="flex flex-col gap-2">
         {linhas.map((l) => (
           <div key={l.membro.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-zinc-700 text-[var(--text)] flex items-center justify-center text-xs font-semibold shrink-0">
+            <div className="w-8 h-8 rounded-full bg-zinc-700 text-zinc-100 flex items-center justify-center text-xs font-semibold shrink-0">
               {(l.membro.full_name || "?").slice(0, 1).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
@@ -1425,7 +1425,7 @@ function EquipeView({ companyId }) {
       <div className="flex flex-col gap-2">
         {team.map((p) => (
           <div key={p.id} className={`bg-[var(--surface)] border rounded-xl p-3 flex items-center gap-3 ${p.blocked ? "border-rose-800 bg-rose-950/40" : "border-[var(--border)]"}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${p.blocked ? "bg-rose-950 text-rose-400" : "bg-zinc-700 text-[var(--text)]"}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${p.blocked ? "bg-rose-950 text-rose-400" : "bg-zinc-700 text-zinc-100"}`}>
               {(p.full_name || "?").slice(0, 1).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
@@ -1452,7 +1452,7 @@ function EquipeView({ companyId }) {
                 <button
                   onClick={() => alternarBloqueio(p)}
                   title={p.blocked ? "Desbloquear acesso" : "Bloquear acesso"}
-                  className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg ${p.blocked ? "bg-zinc-700 text-[var(--text)] hover:bg-zinc-600" : "bg-amber-950 text-amber-300 hover:bg-amber-800"}`}
+                  className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg ${p.blocked ? "bg-zinc-700 text-zinc-100 hover:bg-zinc-600" : "bg-amber-950 text-amber-300 hover:bg-amber-800"}`}
                 >
                   {p.blocked ? <ShieldCheck size={13} /> : <ShieldOff size={13} />}
                   {p.blocked ? "Desbloquear" : "Bloquear"}
@@ -1460,7 +1460,7 @@ function EquipeView({ companyId }) {
                 <button
                   onClick={() => removerMembro(p)}
                   title="Remover da equipe"
-                  className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-zinc-700 text-[var(--text-secondary)] hover:bg-rose-950 hover:text-rose-400"
+                  className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-zinc-700 text-zinc-300 hover:bg-rose-950 hover:text-rose-400"
                 >
                   <UserX size={13} />
                 </button>
@@ -1655,8 +1655,8 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
       <div className="flex flex-col gap-3">
         {data.customers.length > 0 && (
           <div className="flex gap-2 mb-1">
-            <button onClick={() => setNewCustomerMode(false)} className={`flex-1 text-xs font-medium py-2 rounded-lg ${!newCustomerMode ? "bg-zinc-600 text-white" : "bg-zinc-700 text-[var(--text-secondary)]"}`}>Cliente existente</button>
-            <button onClick={() => setNewCustomerMode(true)} className={`flex-1 text-xs font-medium py-2 rounded-lg ${newCustomerMode ? "bg-zinc-600 text-white" : "bg-zinc-700 text-[var(--text-secondary)]"}`}>Novo cliente</button>
+            <button onClick={() => setNewCustomerMode(false)} className={`flex-1 text-xs font-medium py-2 rounded-lg ${!newCustomerMode ? "bg-zinc-600 text-white" : "bg-zinc-700 text-zinc-300"}`}>Cliente existente</button>
+            <button onClick={() => setNewCustomerMode(true)} className={`flex-1 text-xs font-medium py-2 rounded-lg ${newCustomerMode ? "bg-zinc-600 text-white" : "bg-zinc-700 text-zinc-300"}`}>Novo cliente</button>
           </div>
         )}
 
