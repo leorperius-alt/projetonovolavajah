@@ -95,13 +95,13 @@ export default function Auth({ onAuthed }) {
             <div className="flex gap-2 mb-5">
               <button
                 onClick={() => setMode("login")}
-                className={`flex-1 text-sm font-medium py-2 rounded-lg ${mode === "login" ? "bg-zinc-600 text-white" : "bg-zinc-700 text-[var(--text-secondary)]"}`}
+                className={`flex-1 text-sm font-medium py-2 rounded-lg ${mode === "login" ? "bg-zinc-600 text-white" : "bg-zinc-700 text-zinc-300"}`}
               >
                 Entrar
               </button>
               <button
                 onClick={() => setMode("signup")}
-                className={`flex-1 text-sm font-medium py-2 rounded-lg ${mode === "signup" ? "bg-zinc-600 text-white" : "bg-zinc-700 text-[var(--text-secondary)]"}`}
+                className={`flex-1 text-sm font-medium py-2 rounded-lg ${mode === "signup" ? "bg-zinc-600 text-white" : "bg-zinc-700 text-zinc-300"}`}
               >
                 Criar empresa
               </button>
@@ -114,7 +114,7 @@ export default function Auth({ onAuthed }) {
                 <p className="text-sm text-[var(--text-secondary)]">
                   Se existir uma conta com o e-mail <span className="font-semibold">{email}</span>, enviamos um link pra você criar uma senha nova. Confira sua caixa de entrada (e o spam).
                 </p>
-                <button onClick={backToLogin} className="mt-2 bg-zinc-700 hover:bg-zinc-600 text-[var(--text-secondary)] font-medium text-sm py-3 rounded-xl">
+                <button onClick={backToLogin} className="mt-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 font-medium text-sm py-3 rounded-xl">
                   Voltar para o login
                 </button>
               </div>
