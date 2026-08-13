@@ -268,24 +268,30 @@ export async function removeServiceProduct(id) {
   if (error) throw error;
 }
 
-export async function consumeStockForOrder(serviceIds, serviceProducts, note) {
-  const relevantes = (serviceProducts || []).filter((sp) => (serviceIds || []).includes(sp.service_id));
-  for (const sp of relevantes) {
-    await registerMovement(sp.product_id, "saida", sp.quantity, note);
+function combineStockItems(serviceIds, extraProducts, serviceProducts) {
+  const doServicos = (serviceProducts || [])
+    .filter((sp) => (serviceIds || []).includes(sp.service_id))
+    .map((sp) => ({ product_id: sp.product_id, quantity: sp.quantity }));
+  const avulsos = (extraProducts || []).map((e) => ({ product_id: e.product_id, quantity: e.quantity }));
+  return [...doServicos, ...avulsos];
+}
+
+export async function consumeOrderStock(serviceIds, extraProducts, serviceProducts, note) {
+  for (const item of combineStockItems(serviceIds, extraProducts, serviceProducts)) {
+    await registerMovement(item.product_id, "saida", item.quantity, note);
   }
 }
 
-export async function reverseStockForOrder(serviceIds, serviceProducts, note) {
-  const relevantes = (serviceProducts || []).filter((sp) => (serviceIds || []).includes(sp.service_id));
-  for (const sp of relevantes) {
-    await registerMovement(sp.product_id, "entrada", sp.quantity, note);
+export async function reverseOrderStock(serviceIds, extraProducts, serviceProducts, note) {
+  for (const item of combineStockItems(serviceIds, extraProducts, serviceProducts)) {
+    await registerMovement(item.product_id, "entrada", item.quantity, note);
   }
 }
 
 export async function cancelOrder(order, serviceProducts) {
   // se o pedido já tinha saído da agenda (ou seja, o estoque já foi descontado), estorna
   if (order.status !== "agendado") {
-    await reverseStockForOrder(order.service_ids, serviceProducts, "Estorno — pedido cancelado");
+    await reverseOrderStock(order.service_ids, order.extra_products, serviceProducts, "Estorno — pedido cancelado");
   }
   const { error } = await supabase.from("orders").update({ status: "cancelado" }).eq("id", order.id);
   if (error) throw error;
@@ -294,11 +300,11 @@ export async function cancelOrder(order, serviceProducts) {
 export async function updateOrderServices(order, updates, serviceProducts) {
   const estoqueJaConsumido = order.status !== "agendado";
   if (estoqueJaConsumido) {
-    await reverseStockForOrder(order.service_ids, serviceProducts, "Ajuste — edição de pedido");
+    await reverseOrderStock(order.service_ids, order.extra_products, serviceProducts, "Ajuste — edição de pedido");
   }
   const { error } = await supabase.from("orders").update(updates).eq("id", order.id);
   if (error) throw error;
   if (estoqueJaConsumido) {
-    await consumeStockForOrder(updates.service_ids, serviceProducts, "Ajuste — edição de pedido");
+    await consumeOrderStock(updates.service_ids, updates.extra_products, serviceProducts, "Ajuste — edição de pedido");
   }
 }
