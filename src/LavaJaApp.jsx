@@ -348,7 +348,7 @@ function AgendaView({ data, refetch, setModal }) {
 
   const checkIn = async (order) => {
     await db.updateOrderStatus(order.id, "aguardando", { created_at: new Date().toISOString() });
-    await db.consumeStockForOrder(order.service_ids, data.serviceProducts, "Consumo automático — check-in de agendamento");
+    await db.consumeOrderStock(order.service_ids, order.extra_products, data.serviceProducts, "Consumo automático — check-in de agendamento");
     refetch();
   };
 
@@ -1216,6 +1216,9 @@ function EditarPedidoModal({ data, refetch, close, order }) {
   const [extraServices, setExtraServices] = useState(order.extra_services || []);
   const [extraName, setExtraName] = useState("");
   const [extraPrice, setExtraPrice] = useState("");
+  const [extraProducts, setExtraProducts] = useState(order.extra_products || []);
+  const [pickedProductId, setPickedProductId] = useState("");
+  const [pickedQuantity, setPickedQuantity] = useState("1");
   const [attendantId, setAttendantId] = useState(order.attendant_id || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -1237,6 +1240,19 @@ function EditarPedidoModal({ data, refetch, close, order }) {
   };
   const removeExtraService = (id) => setExtraServices((prev) => prev.filter((e) => e.id !== id));
 
+  const addExtraProduct = () => {
+    if (!pickedProductId || !pickedQuantity) return;
+    const produto = data.products.find((p) => p.id === pickedProductId);
+    if (!produto) return;
+    setExtraProducts((prev) => [
+      ...prev,
+      { id: genLocalId(), product_id: produto.id, name: produto.name, unit: produto.unit, quantity: Number(pickedQuantity) || 0 },
+    ]);
+    setPickedProductId("");
+    setPickedQuantity("1");
+  };
+  const removeExtraProduct = (id) => setExtraProducts((prev) => prev.filter((e) => e.id !== id));
+
   const save = async () => {
     if (saving) return;
     if (serviceIds.length === 0 && extraServices.length === 0) return;
@@ -1248,6 +1264,7 @@ function EditarPedidoModal({ data, refetch, close, order }) {
         {
           service_ids: serviceIds,
           extra_services: extraServices.map(({ name, price }) => ({ name, price })),
+          extra_products: extraProducts.map(({ product_id, name, unit, quantity }) => ({ product_id, name, unit, quantity })),
           total,
           attendant_id: attendantId || null,
         },
@@ -1311,13 +1328,45 @@ function EditarPedidoModal({ data, refetch, close, order }) {
           </div>
         )}
 
+        <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mt-2">Produtos do estoque usados</p>
+        {data.products.length === 0 ? (
+          <p className="text-xs text-[var(--text-muted)]">Nenhum produto cadastrado no Estoque ainda.</p>
+        ) : (
+          <div className="flex gap-2">
+            <select value={pickedProductId} onChange={(e) => setPickedProductId(e.target.value)} className="input flex-1">
+              <option value="">Selecione um produto</option>
+              {data.products.map((p) => (
+                <option key={p.id} value={p.id}>{p.name} ({p.unit}) — {p.quantity} em estoque</option>
+              ))}
+            </select>
+            <input value={pickedQuantity} onChange={(e) => setPickedQuantity(e.target.value)} type="number" step="any" className="input w-20" />
+            <button onClick={addExtraProduct} type="button" className="shrink-0 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg px-3">
+              <Plus size={16} />
+            </button>
+          </div>
+        )}
+        {extraProducts.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            {extraProducts.map((e) => (
+              <div key={e.id} className="flex items-center gap-2 border border-[var(--border)] rounded-lg px-3 py-2">
+                <Package size={14} className="text-[var(--text-secondary)] shrink-0" />
+                <span className="flex-1 text-sm">{e.name}</span>
+                <span className="font-num text-sm text-[var(--text-secondary)]">{e.quantity} {e.unit}</span>
+                <button onClick={() => removeExtraProduct(e.id)} className="text-[var(--text-muted)] hover:text-rose-400">
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border)]">
           <span className="text-sm text-[var(--text-secondary)]">Total</span>
           <span className="font-num text-lg font-semibold text-[var(--text)]">{money(total)}</span>
         </div>
 
         {order.status !== "agendado" && (
-          <p className="text-xs text-amber-400">O estoque já usado por esse pedido será ajustado automaticamente pra bater com os serviços novos.</p>
+          <p className="text-xs text-amber-400">O estoque já usado por esse pedido será ajustado automaticamente pra bater com os serviços e produtos novos.</p>
         )}
 
         {error && <p className="text-xs text-rose-400">{error}</p>}
@@ -1576,6 +1625,9 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
   const [extraServices, setExtraServices] = useState([]);
   const [extraName, setExtraName] = useState("");
   const [extraPrice, setExtraPrice] = useState("");
+  const [extraProducts, setExtraProducts] = useState([]);
+  const [pickedProductId, setPickedProductId] = useState("");
+  const [pickedQuantity, setPickedQuantity] = useState("1");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -1593,6 +1645,19 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
     setExtraPrice("");
   };
   const removeExtraService = (id) => setExtraServices((prev) => prev.filter((e) => e.id !== id));
+
+  const addExtraProduct = () => {
+    if (!pickedProductId || !pickedQuantity) return;
+    const produto = data.products.find((p) => p.id === pickedProductId);
+    if (!produto) return;
+    setExtraProducts((prev) => [
+      ...prev,
+      { id: genLocalId(), product_id: produto.id, name: produto.name, unit: produto.unit, quantity: Number(pickedQuantity) || 0 },
+    ]);
+    setPickedProductId("");
+    setPickedQuantity("1");
+  };
+  const removeExtraProduct = (id) => setExtraProducts((prev) => prev.filter((e) => e.id !== id));
 
   const save = async () => {
     if (saving) return;
@@ -1625,11 +1690,14 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
         }
       }
 
+      const extraProductsPayload = extraProducts.map(({ product_id, name, unit, quantity }) => ({ product_id, name, unit, quantity }));
+
       await db.createOrder(companyId, {
         customer_id: finalCustomerId,
         vehicle_id: finalVehicleId,
         service_ids: serviceIds,
         extra_services: extraServices.map(({ name, price }) => ({ name, price })),
+        extra_products: extraProductsPayload,
         total,
         paid: false,
         attendant_id: attendantId || null,
@@ -1638,7 +1706,7 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
       });
 
       if (mode === "queue") {
-        await db.consumeStockForOrder(serviceIds, data.serviceProducts, "Consumo automático — carro na fila");
+        await db.consumeOrderStock(serviceIds, extraProductsPayload, data.serviceProducts, "Consumo automático — carro na fila");
       }
 
       refetch();
@@ -1737,6 +1805,39 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
                 <span className="flex-1 text-sm font-semibold text-amber-200">{e.name}</span>
                 <span className="font-num text-sm font-semibold text-amber-300">{money(e.price)}</span>
                 <button onClick={() => removeExtraService(e.id)} className="text-amber-500 hover:text-rose-400">
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mt-2">Produtos do estoque usados</p>
+        <p className="text-xs text-[var(--text-secondary)] -mt-2">Escolha produtos extras usados nesse carro, além dos já vinculados aos serviços</p>
+        {data.products.length === 0 ? (
+          <p className="text-xs text-[var(--text-muted)]">Nenhum produto cadastrado no Estoque ainda.</p>
+        ) : (
+          <div className="flex gap-2">
+            <select value={pickedProductId} onChange={(e) => setPickedProductId(e.target.value)} className="input flex-1">
+              <option value="">Selecione um produto</option>
+              {data.products.map((p) => (
+                <option key={p.id} value={p.id}>{p.name} ({p.unit}) — {p.quantity} em estoque</option>
+              ))}
+            </select>
+            <input value={pickedQuantity} onChange={(e) => setPickedQuantity(e.target.value)} type="number" step="any" className="input w-20" />
+            <button onClick={addExtraProduct} type="button" className="shrink-0 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg px-3">
+              <Plus size={16} />
+            </button>
+          </div>
+        )}
+        {extraProducts.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            {extraProducts.map((e) => (
+              <div key={e.id} className="flex items-center gap-2 border border-[var(--border)] rounded-lg px-3 py-2">
+                <Package size={14} className="text-[var(--text-secondary)] shrink-0" />
+                <span className="flex-1 text-sm">{e.name}</span>
+                <span className="font-num text-sm text-[var(--text-secondary)]">{e.quantity} {e.unit}</span>
+                <button onClick={() => removeExtraProduct(e.id)} className="text-[var(--text-muted)] hover:text-rose-400">
                   <X size={14} />
                 </button>
               </div>
