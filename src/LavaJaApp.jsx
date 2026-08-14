@@ -4,7 +4,7 @@ import {
   Search, Droplets, CheckCircle2, PlayCircle, LogIn, Banknote, LogOut, UserPlus, Copy, Mail,
   TrendingDown, FileBarChart, Download, ChevronRight, ShieldOff, ShieldCheck, UserX,
   Package, ArrowDownCircle, ArrowUpCircle, History, AlertTriangle, MessageCircle, Percent,
-  Edit2, XCircle,
+  Edit2, XCircle, LayoutDashboard, ArrowUp, ArrowDown, Minus,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./lib/db";
@@ -71,6 +71,7 @@ export default function LavaJaApp({ onLogout }) {
       const cid = profile?.company_id || null;
       setCompanyId(cid);
       setMyRole(profile?.role || null);
+      if (profile?.role === "owner") setTab("dashboard");
       if (cid) {
         const { data: company } = await supabase.from("companies").select("name").eq("id", cid).single();
         setCompanyName(company?.name || "");
@@ -125,6 +126,7 @@ export default function LavaJaApp({ onLogout }) {
   }
 
   const FULL_NAV = [
+    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, ownerOnly: true },
     { id: "fila", label: "Fila", icon: Car },
     { id: "agenda", label: "Agenda", icon: CalendarClock },
     { id: "clientes", label: "Clientes", icon: Users },
@@ -187,6 +189,7 @@ export default function LavaJaApp({ onLogout }) {
       </div>
 
       <div className="flex-1 overflow-y-auto pb-20 md:pb-0">
+        {activeTab === "dashboard" && isOwner && <DashboardView data={data} setTab={setTab} />}
         {activeTab === "fila" && <FilaView data={data} companyId={companyId} companyName={companyName} refetch={refetch} setModal={setModal} />}
         {activeTab === "agenda" && <AgendaView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "clientes" && <ClientesView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
@@ -231,6 +234,163 @@ function OrderServicesLine({ data, order }) {
   const names = (order.service_ids || []).map((id) => data.services.find((s) => s.id === id)?.name).filter(Boolean);
   const extraNames = (order.extra_services || []).map((e) => e.name);
   return <p className="text-xs text-[var(--text-secondary)] truncate">{[...names, ...extraNames].join(", ")}</p>;
+}
+
+function DashboardView({ data, setTab }) {
+  const hoje = todayStr();
+  const ontemDate = new Date();
+  ontemDate.setDate(ontemDate.getDate() - 1);
+  const ontem = ontemDate.toISOString().slice(0, 10);
+  const mesAtual = hoje.slice(0, 7); // YYYY-MM
+
+  const entregues = data.orders.filter((o) => o.status === "entregue");
+  const pagosHoje = entregues.filter((o) => o.paid && dateStrOf(o.created_at) === hoje).reduce((s, o) => s + o.total, 0);
+  const pagosOntem = entregues.filter((o) => o.paid && dateStrOf(o.created_at) === ontem).reduce((s, o) => s + o.total, 0);
+  const lavagensHoje = entregues.filter((o) => dateStrOf(o.created_at) === hoje).length;
+  const totalHoje = entregues.filter((o) => dateStrOf(o.created_at) === hoje).reduce((s, o) => s + o.total, 0);
+  const ticketMedioHoje = lavagensHoje ? totalHoje / lavagensHoje : 0;
+  const aReceber = entregues.filter((o) => !o.paid).reduce((s, o) => s + o.total, 0);
+
+  const entreguesMes = entregues.filter((o) => dateStrOf(o.created_at).startsWith(mesAtual));
+  const faturadoMes = entreguesMes.filter((o) => o.paid).reduce((s, o) => s + o.total, 0);
+  const despesasMes = (data.expenses || []).filter((e) => e.expense_date.startsWith(mesAtual)).reduce((s, e) => s + Number(e.amount), 0);
+  const lucroMes = faturadoMes - despesasMes;
+
+  const comissoesMes = (data.team || []).reduce((soma, membro) => {
+    const total = entreguesMes.filter((o) => o.attendant_id === membro.id).reduce((s, o) => s + o.total, 0);
+    return soma + (total * (Number(membro.commission_rate) || 0)) / 100;
+  }, 0);
+
+  const filaAguardando = data.orders.filter((o) => o.status === "aguardando").length;
+  const filaLavando = data.orders.filter((o) => o.status === "lavando").length;
+  const filaPronto = data.orders.filter((o) => o.status === "pronto").length;
+
+  const produtosBaixoEstoque = (data.products || []).filter((p) => Number(p.quantity) <= Number(p.min_quantity));
+
+  const dias = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (13 - i));
+    const iso = d.toISOString().slice(0, 10);
+    const total = entregues.filter((o) => o.paid && dateStrOf(o.created_at) === iso).reduce((s, o) => s + o.total, 0);
+    return { iso, total, label: d.toLocaleDateString("pt-BR", { day: "2-digit" }) };
+  });
+  const maxDia = Math.max(1, ...dias.map((d) => d.total));
+
+  const porServicoMes = {};
+  entreguesMes.forEach((o) => {
+    (o.service_ids || []).forEach((id) => {
+      const s = data.services.find((sv) => sv.id === id);
+      if (s) porServicoMes[s.name] = (porServicoMes[s.name] || 0) + 1;
+    });
+    (o.extra_services || []).forEach((e) => {
+      porServicoMes[e.name] = (porServicoMes[e.name] || 0) + 1;
+    });
+  });
+  const topServicos = Object.entries(porServicoMes).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  const variacao = pagosOntem > 0 ? ((pagosHoje - pagosOntem) / pagosOntem) * 100 : pagosHoje > 0 ? 100 : 0;
+
+  return (
+    <div className="p-4 md:p-6">
+      <h1 className="font-display text-xl font-semibold mb-1">Dashboard</h1>
+      <p className="text-sm text-[var(--text-secondary)] mb-5">Visão geral do negócio</p>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--text-secondary)] mb-1">Faturado hoje</p>
+          <p className="font-num text-xl font-semibold text-[var(--text)]">{money(pagosHoje)}</p>
+          <p className={`text-xs mt-1 flex items-center gap-1 ${variacao > 0 ? "text-emerald-400" : variacao < 0 ? "text-rose-400" : "text-[var(--text-muted)]"}`}>
+            {variacao > 0 ? <ArrowUp size={12} /> : variacao < 0 ? <ArrowDown size={12} /> : <Minus size={12} />}
+            {Math.abs(variacao).toFixed(0)}% vs ontem
+          </p>
+        </div>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--text-secondary)] mb-1">Lavagens hoje</p>
+          <p className="font-num text-xl font-semibold text-[var(--text)]">{lavagensHoje}</p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">Ticket médio {money(ticketMedioHoje)}</p>
+        </div>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--text-secondary)] mb-1">A receber</p>
+          <p className="font-num text-xl font-semibold text-amber-400">{money(aReceber)}</p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">Lavagens entregues e não pagas</p>
+        </div>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--text-secondary)] mb-1">Lucro líquido no mês</p>
+          <p className={`font-num text-xl font-semibold ${lucroMes >= 0 ? "text-[var(--text)]" : "text-rose-400"}`}>{money(lucroMes)}</p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">Faturado {money(faturadoMes)} · Despesas {money(despesasMes)}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        <div className="lg:col-span-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-3">Faturamento — últimos 14 dias</p>
+          <div className="flex items-end gap-1.5 h-32">
+            {dias.map((d) => (
+              <div key={d.iso} className="flex-1 flex flex-col items-center justify-end gap-1" title={`${d.label}: ${money(d.total)}`}>
+                <div
+                  className="w-full rounded-t bg-zinc-500 hover:bg-zinc-400 transition-all"
+                  style={{ height: `${Math.max(4, (d.total / maxDia) * 100)}%` }}
+                />
+                <span className="text-[9px] text-[var(--text-muted)]">{d.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-3">Fila agora</p>
+          <button onClick={() => setTab("fila")} className="w-full flex flex-col gap-2 text-left">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-[var(--text-secondary)] flex items-center gap-1.5"><Clock size={13} /> Aguardando</span>
+              <span className="font-num font-semibold text-[var(--text)]">{filaAguardando}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-[var(--text-secondary)] flex items-center gap-1.5"><Droplets size={13} /> Lavando</span>
+              <span className="font-num font-semibold text-[var(--text)]">{filaLavando}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-[var(--text-secondary)] flex items-center gap-1.5"><CheckCircle2 size={13} /> Pronto</span>
+              <span className="font-num font-semibold text-[var(--text)]">{filaPronto}</span>
+            </div>
+          </button>
+          <div className="border-t border-[var(--border)] mt-3 pt-3">
+            <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5"><Percent size={13} /> Comissões do mês</p>
+            <p className="font-num text-lg font-semibold text-[var(--text)] mt-1">{money(comissoesMes)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-3">Top serviços do mês</p>
+          {topServicos.length === 0 && <p className="text-sm text-[var(--text-muted)]">Nenhuma lavagem concluída neste mês ainda</p>}
+          <div className="flex flex-col gap-2">
+            {topServicos.map(([nome, qtd]) => (
+              <div key={nome} className="flex items-center justify-between text-sm">
+                <span className="text-[var(--text)]">{nome}</span>
+                <span className="font-num text-[var(--text-secondary)]">{qtd}x</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-3">Estoque</p>
+          {produtosBaixoEstoque.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">Nenhum produto com estoque baixo 👍</p>
+          ) : (
+            <button onClick={() => setTab("estoque")} className="w-full text-left">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle size={15} className="text-amber-400 shrink-0" />
+                <p className="text-sm text-amber-300">{produtosBaixoEstoque.length} produto(s) com estoque baixo</p>
+              </div>
+              <p className="text-xs text-[var(--text-secondary)]">{produtosBaixoEstoque.map((p) => p.name).join(", ")}</p>
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function FilaView({ data, companyName, refetch, setModal }) {
