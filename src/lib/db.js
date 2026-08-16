@@ -153,6 +153,11 @@ export async function setMemberCommission(id, rate) {
   if (error) throw error;
 }
 
+export async function setLoyaltyThreshold(companyId, value) {
+  const { error } = await supabase.from("companies").update({ loyalty_threshold: value }).eq("id", companyId);
+  if (error) throw error;
+}
+
 export async function setMemberBlocked(id, blocked) {
   const { error } = await supabase.from("profiles").update({ blocked }).eq("id", id);
   if (error) throw error;
