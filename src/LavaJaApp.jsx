@@ -13,6 +13,7 @@ import ThemeToggle from "./ThemeToggle.jsx";
 const genLocalId = () => Math.random().toString(36).slice(2, 9);
 const money = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const todayStr = () => new Date().toISOString().slice(0, 10);
+const dateTimeStr = (iso) => new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
 const waLink = (phone, message) => {
   let digits = (phone || "").replace(/\D/g, "");
@@ -31,6 +32,7 @@ const timeAgo = (iso) => {
 export default function LavaJaApp({ onLogout }) {
   const [companyId, setCompanyId] = useState(null);
   const [companyName, setCompanyName] = useState("");
+  const [loyaltyThreshold, setLoyaltyThreshold] = useState(10);
   const [myRole, setMyRole] = useState(null);
   const [myUserId, setMyUserId] = useState(null);
   const [blocked, setBlocked] = useState(false);
@@ -73,8 +75,9 @@ export default function LavaJaApp({ onLogout }) {
       setMyRole(profile?.role || null);
       if (profile?.role === "owner") setTab("dashboard");
       if (cid) {
-        const { data: company } = await supabase.from("companies").select("name").eq("id", cid).single();
+        const { data: company } = await supabase.from("companies").select("name, loyalty_threshold").eq("id", cid).single();
         setCompanyName(company?.name || "");
+        setLoyaltyThreshold(company?.loyalty_threshold || 10);
         await refetch(cid);
       }
       setLoading(false);
@@ -192,7 +195,17 @@ export default function LavaJaApp({ onLogout }) {
         {activeTab === "dashboard" && isOwner && <DashboardView data={data} setTab={setTab} />}
         {activeTab === "fila" && <FilaView data={data} companyId={companyId} companyName={companyName} refetch={refetch} setModal={setModal} />}
         {activeTab === "agenda" && <AgendaView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
-        {activeTab === "clientes" && <ClientesView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
+        {activeTab === "clientes" && (
+          <ClientesView
+            data={data}
+            companyId={companyId}
+            refetch={refetch}
+            setModal={setModal}
+            isOwner={isOwner}
+            loyaltyThreshold={loyaltyThreshold}
+            setLoyaltyThreshold={setLoyaltyThreshold}
+          />
+        )}
         {activeTab === "servicos" && <ServicosView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "estoque" && <EstoqueView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "financeiro" && isOwner && <FinanceiroView data={data} companyId={companyId} refetch={refetch} />}
@@ -581,7 +594,7 @@ function AgendaView({ data, refetch, setModal }) {
   );
 }
 
-function ClientesView({ data, companyId, refetch, setModal }) {
+function ClientesView({ data, companyId, refetch, setModal, isOwner, loyaltyThreshold, setLoyaltyThreshold }) {
   const [q, setQ] = useState("");
   const filtered = data.customers.filter((c) =>
     (c.name + (c.phone || "") + c.vehicles.map((v) => v.plate).join(" ")).toLowerCase().includes(q.toLowerCase())
@@ -592,9 +605,23 @@ function ClientesView({ data, companyId, refetch, setModal }) {
     refetch();
   };
 
+  const statsDoCliente = (customerId) => {
+    const pedidos = data.orders.filter((o) => o.customer_id === customerId && o.status === "entregue");
+    const lavagens = pedidos.length;
+    const gasto = pedidos.reduce((s, o) => s + o.total, 0);
+    const ultima = pedidos.reduce((max, o) => (!max || o.created_at > max ? o.created_at : max), null);
+    return { lavagens, gasto, ultima, pedidos };
+  };
+
+  const salvarMeta = async (value) => {
+    const v = Math.max(1, Number(value) || 1);
+    setLoyaltyThreshold(v);
+    await db.setLoyaltyThreshold(companyId, v);
+  };
+
   return (
     <div className="p-4 md:p-6">
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
         <div>
           <h1 className="font-display text-xl font-semibold">Clientes</h1>
           <p className="text-sm text-[var(--text-secondary)]">{data.customers.length} cliente(s) cadastrado(s)</p>
@@ -604,6 +631,20 @@ function ClientesView({ data, companyId, refetch, setModal }) {
         </button>
       </div>
 
+      {isOwner && (
+        <div className="flex items-center gap-2 mb-4 text-xs text-[var(--text-secondary)]">
+          <span>Fidelidade: a cada</span>
+          <input
+            defaultValue={loyaltyThreshold}
+            onBlur={(e) => salvarMeta(e.target.value)}
+            type="number"
+            min="1"
+            className="w-14 px-2 py-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] text-center"
+          />
+          <span>lavagens, o cliente ganha 1 grátis</span>
+        </div>
+      )}
+
       <div className="relative mb-4">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome, telefone ou placa" className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[var(--border)] text-sm bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-zinc-400" />
@@ -612,35 +653,109 @@ function ClientesView({ data, companyId, refetch, setModal }) {
       {filtered.length === 0 && <div className="text-center py-16 text-[var(--text-secondary)] text-sm">Nenhum cliente encontrado</div>}
 
       <div className="flex flex-col gap-2">
-        {filtered.map((c) => (
-          <div key={c.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="font-semibold text-sm">{c.name}</p>
-                {c.phone && <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1 mt-0.5"><Phone size={11} /> {c.phone}</p>}
+        {filtered.map((c) => {
+          const { lavagens, gasto, ultima } = statsDoCliente(c.id);
+          const posicaoNoCiclo = lavagens % loyaltyThreshold;
+          const pronto = lavagens > 0 && posicaoNoCiclo === 0;
+          const completas = pronto ? loyaltyThreshold : posicaoNoCiclo;
+          const restantes = loyaltyThreshold - completas;
+          return (
+            <div key={c.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-semibold text-sm">{c.name}</p>
+                  {c.phone && <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1 mt-0.5"><Phone size={11} /> {c.phone}</p>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setModal({ type: "novoVeiculo", customerId: c.id })} className="text-xs font-medium text-[var(--text)] hover:text-[var(--text)] flex items-center gap-1">
+                    <Plus size={12} /> Veículo
+                  </button>
+                  <button onClick={() => removeCustomer(c.id)} className="text-[var(--text-muted)] hover:text-rose-400">
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setModal({ type: "novoVeiculo", customerId: c.id })} className="text-xs font-medium text-[var(--text)] hover:text-[var(--text)] flex items-center gap-1">
-                  <Plus size={12} /> Veículo
-                </button>
-                <button onClick={() => removeCustomer(c.id)} className="text-[var(--text-muted)] hover:text-rose-400">
-                  <Trash2 size={15} />
+              {c.vehicles.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {c.vehicles.map((v) => (
+                    <span key={v.id} className="text-xs bg-zinc-700 text-zinc-300 rounded-lg px-2.5 py-1">
+                      {v.plate} · {v.model} {v.color ? `(${v.color})` : ""}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-3 pt-3 border-t border-[var(--border)] flex items-center justify-between flex-wrap gap-2">
+                <div className="text-xs text-[var(--text-secondary)]">
+                  <span className="font-num font-semibold text-[var(--text)]">{lavagens}</span> lavagem(ns) ·{" "}
+                  <span className="font-num font-semibold text-[var(--text)]">{money(gasto)}</span> gasto
+                  {ultima && <> · última em {dateTimeStr(ultima).split(" ")[0]}</>}
+                </div>
+                <button onClick={() => setModal({ type: "historicoCliente", customer: c })} className="text-xs font-medium text-[var(--text)] underline hover:no-underline">
+                  Ver histórico
                 </button>
               </div>
+
+              {lavagens > 0 && (
+                <div className="mt-2">
+                  <div className="h-1.5 bg-[var(--bg)] rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${pronto ? "bg-emerald-500" : "bg-zinc-500"}`}
+                      style={{ width: `${(completas / loyaltyThreshold) * 100}%` }}
+                    />
+                  </div>
+                  <p className={`text-[11px] mt-1 ${pronto ? "text-emerald-400" : "text-[var(--text-muted)]"}`}>
+                    {pronto ? "🎉 Já pode ganhar a lavagem grátis!" : `Faltam ${restantes} lavagem(ns) para a grátis`}
+                  </p>
+                </div>
+              )}
             </div>
-            {c.vehicles.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {c.vehicles.map((v) => (
-                  <span key={v.id} className="text-xs bg-zinc-700 text-zinc-300 rounded-lg px-2.5 py-1">
-                    {v.plate} · {v.model} {v.color ? `(${v.color})` : ""}
-                  </span>
-                ))}
-              </div>
-            )}
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function HistoricoClienteModal({ data, customer, close }) {
+  const pedidos = data.orders
+    .filter((o) => o.customer_id === customer.id && o.status === "entregue")
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  const totalGasto = pedidos.reduce((s, o) => s + o.total, 0);
+
+  return (
+    <ModalShell title={`Histórico — ${customer.name}`} onClose={close}>
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="bg-[var(--bg)] border border-[var(--border)] rounded-xl p-3">
+          <p className="text-xs text-[var(--text-secondary)] mb-1">Total de lavagens</p>
+          <p className="font-num text-lg font-semibold text-[var(--text)]">{pedidos.length}</p>
+        </div>
+        <div className="bg-[var(--bg)] border border-[var(--border)] rounded-xl p-3">
+          <p className="text-xs text-[var(--text-secondary)] mb-1">Total gasto</p>
+          <p className="font-num text-lg font-semibold text-[var(--text)]">{money(totalGasto)}</p>
+        </div>
+      </div>
+
+      {pedidos.length === 0 && <p className="text-sm text-[var(--text-muted)] text-center py-6">Nenhuma lavagem concluída ainda.</p>}
+
+      <div className="flex flex-col gap-2">
+        {pedidos.map((o) => (
+          <div key={o.id} className="border border-[var(--border)] rounded-xl p-3">
+            <div className="flex items-center justify-between">
+              <OrderServicesLine data={data} order={o} />
+              <span className="font-num text-sm font-semibold text-[var(--text)] shrink-0 ml-2">{money(o.total)}</span>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-xs text-[var(--text-muted)]">{dateTimeStr(o.created_at)}</p>
+              <span className={`text-[11px] font-medium px-2 py-0.5 rounded ${o.paid ? "bg-zinc-700 text-zinc-100" : "bg-amber-950 text-amber-300"}`}>
+                {o.paid ? "Pago" : "Pendente"}
+              </span>
+            </div>
           </div>
         ))}
       </div>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -810,6 +925,7 @@ function FinanceiroView({ data, companyId, refetch }) {
             <div className="flex-1 min-w-0">
               <OrderCustomerLine data={data} order={order} />
               <OrderServicesLine data={data} order={order} />
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">{dateTimeStr(order.created_at)}</p>
             </div>
             <span className="font-num text-sm font-semibold">{money(order.total)}</span>
             <button onClick={() => toggle(order)} className={`text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1 ${order.paid ? "bg-zinc-700 text-zinc-100" : "bg-amber-950 text-amber-300"}`}>
@@ -901,7 +1017,7 @@ function RelatoriosView({ data }) {
   const rankingServicos = Object.entries(porServico).sort((a, b) => b[1].qtd - a[1].qtd);
 
   const baixarCsv = () => {
-    const linhas = [["Data", "Cliente", "Placa", "Serviços", "Total", "Status pagamento"]];
+    const linhas = [["Data e hora", "Cliente", "Placa", "Serviços", "Total", "Status pagamento"]];
     ordersInRange
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
       .forEach((o) => {
@@ -912,7 +1028,7 @@ function RelatoriosView({ data }) {
           ...(o.extra_services || []).map((e) => e.name),
         ].join(" + ");
         linhas.push([
-          new Date(o.created_at).toLocaleDateString("pt-BR"),
+          dateTimeStr(o.created_at),
           customer?.name || "",
           vehicle?.plate || "",
           nomesServicos,
@@ -974,6 +1090,30 @@ function RelatoriosView({ data }) {
         </div>
       </div>
 
+      <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2 px-1">Vendas do período</p>
+      {ordersInRange.length === 0 && <p className="text-sm text-[var(--text-secondary)] mb-6">Nenhuma venda nesse período</p>}
+      <div className="flex flex-col gap-2 mb-6">
+        {[...ordersInRange]
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+          .map((o) => {
+            const customer = data.customers.find((c) => c.id === o.customer_id);
+            const vehicle = customer?.vehicles.find((v) => v.id === o.vehicle_id);
+            return (
+              <div key={o.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{customer?.name || "—"} · {vehicle?.plate || "—"}</p>
+                  <OrderServicesLine data={data} order={o} />
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">{dateTimeStr(o.created_at)}</p>
+                </div>
+                <span className="font-num text-sm font-semibold text-[var(--text)] shrink-0">{money(o.total)}</span>
+                <span className={`text-xs font-medium px-2.5 py-1 rounded-lg shrink-0 ${o.paid ? "bg-zinc-700 text-zinc-100" : "bg-amber-950 text-amber-300"}`}>
+                  {o.paid ? "Pago" : "Pendente"}
+                </span>
+              </div>
+            );
+          })}
+      </div>
+
       <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2 px-1">Serviços mais pedidos no período</p>
       {rankingServicos.length === 0 && <p className="text-sm text-[var(--text-secondary)] mb-6">Nenhum serviço registrado nesse período</p>}
       <div className="flex flex-col gap-2">
@@ -1031,7 +1171,7 @@ function ServicoDetalheModal({ nome, info, onClose }) {
               <div key={i} className="border border-[var(--border)] rounded-xl p-3 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{o.cliente} · {o.placa}</p>
-                  <p className="text-xs text-[var(--text-secondary)]">{new Date(o.data).toLocaleDateString("pt-BR")}</p>
+                  <p className="text-xs text-[var(--text-secondary)]">{dateTimeStr(o.data)}</p>
                 </div>
                 <span className="font-num text-sm font-semibold">{money(o.valor)}</span>
               </div>
@@ -1211,7 +1351,7 @@ function HistoricoEstoqueModal({ produto, close }) {
               <p className="text-sm font-medium">{m.type === "entrada" ? "Entrada" : "Saída"} de {m.quantity} {produto.unit}</p>
               {m.note && <p className="text-xs text-[var(--text-muted)] truncate">{m.note}</p>}
             </div>
-            <span className="text-xs text-[var(--text-muted)] shrink-0">{new Date(m.created_at).toLocaleDateString("pt-BR")}</span>
+            <span className="text-xs text-[var(--text-muted)] shrink-0">{dateTimeStr(m.created_at)}</span>
           </div>
         ))}
       </div>
@@ -1709,6 +1849,7 @@ function ModalRouter({ modal, setModal, data, companyId, refetch, myUserId }) {
   if (modal.type === "historicoEstoque") return <HistoricoEstoqueModal produto={modal.produto} close={close} />;
   if (modal.type === "vincularProdutos") return <VincularProdutosModal data={data} companyId={companyId} refetch={refetch} close={close} servico={modal.servico} />;
   if (modal.type === "editarPedido") return <EditarPedidoModal data={data} refetch={refetch} close={close} order={modal.order} />;
+  if (modal.type === "historicoCliente") return <HistoricoClienteModal data={data} customer={modal.customer} close={close} />;
   return null;
 }
 
