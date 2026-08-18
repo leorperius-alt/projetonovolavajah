@@ -4,7 +4,7 @@ import {
   Search, Droplets, CheckCircle2, PlayCircle, LogIn, Banknote, LogOut, UserPlus, Copy, Mail,
   TrendingDown, FileBarChart, Download, ChevronRight, ShieldOff, ShieldCheck, UserX,
   Package, ArrowDownCircle, ArrowUpCircle, History, AlertTriangle, MessageCircle, Percent,
-  Edit2, XCircle, LayoutDashboard, ArrowUp, ArrowDown, Minus,
+  Edit2, XCircle, LayoutDashboard, ArrowUp, ArrowDown, Minus, CreditCard, FileText,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./lib/db";
@@ -496,7 +496,7 @@ function FilaView({ data, companyName, refetch, setModal }) {
                             ) : (
                               <p className="text-[11px] text-[var(--text-muted)] text-center">Cliente sem telefone cadastrado</p>
                             )}
-                            <button onClick={() => advance(order, "entregue")} className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-zinc-600 hover:bg-zinc-500 text-white rounded-lg py-2">
+                            <button onClick={() => setModal({ type: "confirmarEntrega", order })} className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-zinc-600 hover:bg-zinc-500 text-white rounded-lg py-2">
                               <Check size={14} /> Entregar
                             </button>
                           </>
@@ -717,6 +717,56 @@ function ClientesView({ data, companyId, refetch, setModal, isOwner, loyaltyThre
   );
 }
 
+function ConfirmarEntregaModal({ data, refetch, close, order }) {
+  const [saving, setSaving] = useState(false);
+  const customer = data.customers.find((c) => c.id === order.customer_id);
+  const vehicle = customer?.vehicles.find((v) => v.id === order.vehicle_id);
+
+  const icons = {
+    dinheiro: Banknote,
+    cartao_credito: CreditCard,
+    cartao_debito: CreditCard,
+    a_faturar: FileText,
+  };
+
+  const escolher = async (method) => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await db.finalizeDelivery(order.id, method);
+      refetch();
+      close();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <ModalShell title={`Entregar — ${vehicle?.plate || "veículo"}`} onClose={close}>
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-[var(--text-secondary)]">{customer?.name} · total <span className="font-num font-semibold text-[var(--text)]">{money(order.total)}</span></p>
+        <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mt-1">Como o cliente pagou?</p>
+        <div className="grid grid-cols-2 gap-2">
+          {db.PAYMENT_METHODS.map((m) => {
+            const Icon = icons[m.value];
+            return (
+              <button
+                key={m.value}
+                disabled={saving}
+                onClick={() => escolher(m.value)}
+                className="flex flex-col items-center gap-2 border border-[var(--border)] hover:border-zinc-400 rounded-xl py-4 disabled:opacity-60"
+              >
+                <Icon size={20} className="text-[var(--text)]" />
+                <span className="text-xs font-medium text-[var(--text)]">{m.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
 function HistoricoClienteModal({ data, customer, close }) {
   const pedidos = data.orders
     .filter((o) => o.customer_id === customer.id && o.status === "entregue")
@@ -863,8 +913,8 @@ function FinanceiroView({ data, companyId, refetch }) {
   const totalDespesas = filteredExpenses.reduce((s, e) => s + Number(e.amount), 0);
   const lucroLiquido = totalPago - totalDespesas;
 
-  const toggle = async (order) => {
-    await db.togglePaid(order.id, !order.paid);
+  const alterarFormaPagamento = async (order, method) => {
+    await db.setPaymentMethod(order.id, method);
     refetch();
   };
 
@@ -928,9 +978,16 @@ function FinanceiroView({ data, companyId, refetch }) {
               <p className="text-xs text-[var(--text-muted)] mt-0.5">{dateTimeStr(order.created_at)}</p>
             </div>
             <span className="font-num text-sm font-semibold">{money(order.total)}</span>
-            <button onClick={() => toggle(order)} className={`text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1 ${order.paid ? "bg-zinc-700 text-zinc-100" : "bg-amber-950 text-amber-300"}`}>
-              <Banknote size={12} /> {order.paid ? "Pago" : "Pendente"}
-            </button>
+            <select
+              value={order.payment_method || ""}
+              onChange={(e) => alterarFormaPagamento(order, e.target.value)}
+              className={`text-xs font-medium px-2 py-1.5 rounded-lg border-0 ${order.paid ? "bg-zinc-700 text-zinc-100" : "bg-amber-950 text-amber-300"}`}
+            >
+              <option value="" disabled>{order.paid ? "Pago" : "Pendente"}</option>
+              {db.PAYMENT_METHODS.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
           </div>
         ))}
       </div>
@@ -989,6 +1046,14 @@ function RelatoriosView({ data }) {
   const lucroLiquido = totalPago - totalDespesas;
   const ticketMedio = ordersInRange.length ? totalFaturado / ordersInRange.length : 0;
 
+  const labelFormaPagamento = (method) => db.PAYMENT_METHODS.find((m) => m.value === method)?.label || "Não informado";
+
+  const porFormaPagamento = {};
+  ordersInRange.forEach((o) => {
+    const label = labelFormaPagamento(o.payment_method);
+    porFormaPagamento[label] = (porFormaPagamento[label] || 0) + o.total;
+  });
+
   const porServico = {};
   const registrarOcorrencia = (nome, valor, order) => {
     const customer = data.customers.find((c) => c.id === order.customer_id);
@@ -1017,7 +1082,7 @@ function RelatoriosView({ data }) {
   const rankingServicos = Object.entries(porServico).sort((a, b) => b[1].qtd - a[1].qtd);
 
   const baixarCsv = () => {
-    const linhas = [["Data e hora", "Cliente", "Placa", "Serviços", "Total", "Status pagamento"]];
+    const linhas = [["Data e hora", "Cliente", "Placa", "Serviços", "Total", "Status pagamento", "Forma de pagamento"]];
     ordersInRange
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
       .forEach((o) => {
@@ -1034,6 +1099,7 @@ function RelatoriosView({ data }) {
           nomesServicos,
           o.total,
           o.paid ? "Pago" : "Pendente",
+          labelFormaPagamento(o.payment_method),
         ]);
       });
     linhas.push([]);
@@ -1090,6 +1156,26 @@ function RelatoriosView({ data }) {
         </div>
       </div>
 
+      <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2 px-1">Faturamento por forma de pagamento</p>
+      {Object.keys(porFormaPagamento).length === 0 ? (
+        <p className="text-sm text-[var(--text-secondary)] mb-6">Nenhuma venda nesse período</p>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          {db.PAYMENT_METHODS.map((m) => (
+            <div key={m.value} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3">
+              <p className="text-xs text-[var(--text-secondary)] mb-1">{m.label}</p>
+              <p className="font-num text-base font-semibold text-[var(--text)]">{money(porFormaPagamento[m.label] || 0)}</p>
+            </div>
+          ))}
+          {porFormaPagamento["Não informado"] > 0 && (
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3">
+              <p className="text-xs text-[var(--text-secondary)] mb-1">Não informado</p>
+              <p className="font-num text-base font-semibold text-[var(--text)]">{money(porFormaPagamento["Não informado"])}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2 px-1">Vendas do período</p>
       {ordersInRange.length === 0 && <p className="text-sm text-[var(--text-secondary)] mb-6">Nenhuma venda nesse período</p>}
       <div className="flex flex-col gap-2 mb-6">
@@ -1103,7 +1189,7 @@ function RelatoriosView({ data }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{customer?.name || "—"} · {vehicle?.plate || "—"}</p>
                   <OrderServicesLine data={data} order={o} />
-                  <p className="text-xs text-[var(--text-muted)] mt-0.5">{dateTimeStr(o.created_at)}</p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">{dateTimeStr(o.created_at)} · {labelFormaPagamento(o.payment_method)}</p>
                 </div>
                 <span className="font-num text-sm font-semibold text-[var(--text)] shrink-0">{money(o.total)}</span>
                 <span className={`text-xs font-medium px-2.5 py-1 rounded-lg shrink-0 ${o.paid ? "bg-zinc-700 text-zinc-100" : "bg-amber-950 text-amber-300"}`}>
@@ -1850,6 +1936,7 @@ function ModalRouter({ modal, setModal, data, companyId, refetch, myUserId }) {
   if (modal.type === "vincularProdutos") return <VincularProdutosModal data={data} companyId={companyId} refetch={refetch} close={close} servico={modal.servico} />;
   if (modal.type === "editarPedido") return <EditarPedidoModal data={data} refetch={refetch} close={close} order={modal.order} />;
   if (modal.type === "historicoCliente") return <HistoricoClienteModal data={data} customer={modal.customer} close={close} />;
+  if (modal.type === "confirmarEntrega") return <ConfirmarEntregaModal data={data} refetch={refetch} close={close} order={modal.order} />;
   return null;
 }
 
