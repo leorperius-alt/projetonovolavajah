@@ -4,8 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
     <title>LavaJá</title>
+    <meta name="description" content="O app de gestão que facilita o dia a dia do seu lava-rápido" />
+
     <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
     <meta name="theme-color" content="#ffffff" />
+
+    <!-- Instalação no iPhone/iPad (Safari não lê o manifest.json pra isso) -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="LavaJá" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -33,7 +45,10 @@
     <script>
       (function () {
         var saved = localStorage.getItem("lavaja-theme");
-        if (saved === "dark") document.documentElement.classList.add("dark");
+        if (saved === "dark") {
+          document.documentElement.classList.add("dark");
+          document.querySelector('meta[name="theme-color"]').setAttribute("content", "#18181b");
+        }
       })();
     </script>
   </head>
