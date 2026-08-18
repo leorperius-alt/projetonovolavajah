@@ -137,6 +137,25 @@ export async function togglePaid(id, paid) {
   if (error) throw error;
 }
 
+export const PAYMENT_METHODS = [
+  { value: "dinheiro", label: "Dinheiro" },
+  { value: "cartao_credito", label: "Cartão de crédito" },
+  { value: "cartao_debito", label: "Cartão de débito" },
+  { value: "a_faturar", label: "A faturar" },
+];
+
+export async function finalizeDelivery(id, paymentMethod) {
+  const paid = paymentMethod !== "a_faturar";
+  const { error } = await supabase.from("orders").update({ status: "entregue", payment_method: paymentMethod, paid }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function setPaymentMethod(id, paymentMethod) {
+  const paid = paymentMethod !== "a_faturar";
+  const { error } = await supabase.from("orders").update({ payment_method: paymentMethod, paid }).eq("id", id);
+  if (error) throw error;
+}
+
 // ---- Equipe e convites ----
 export async function fetchTeam(companyId) {
   const { data, error } = await supabase
