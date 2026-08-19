@@ -21,6 +21,29 @@ const waLink = (phone, message) => {
   if (digits.length <= 11) digits = "55" + digits; // assume BR se não veio com país
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 };
+
+// ---- Validação de telefone (BR) ----
+const onlyDigits = (v) => (v || "").replace(/\D/g, "");
+const isValidPhone = (raw) => {
+  if (!raw || !raw.trim()) return true; // telefone é opcional
+  const d = onlyDigits(raw);
+  return d.length === 10 || d.length === 11 || d.length === 12 || d.length === 13;
+};
+const formatPhone = (raw) => {
+  let d = onlyDigits(raw);
+  if (d.length > 11 && d.startsWith("55")) d = d.slice(2); // exibe sem o 55 se já tiver
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return raw;
+};
+
+// ---- Validação de placa (BR) — aceita padrão antigo (ABC1234) e Mercosul (ABC1D23) ----
+const normalizePlate = (raw) => (raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+const isValidPlate = (raw) => /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(normalizePlate(raw));
+const formatPlate = (raw) => {
+  const p = normalizePlate(raw);
+  return p.length === 7 ? `${p.slice(0, 3)}-${p.slice(3)}` : p;
+};
 const dateStrOf = (iso) => (iso ? iso.slice(0, 10) : "");
 const timeAgo = (iso) => {
   const mins = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
@@ -664,9 +687,12 @@ function ClientesView({ data, companyId, refetch, setModal, isOwner, loyaltyThre
               <div className="flex items-start justify-between">
                 <div>
                   <p className="font-semibold text-sm">{c.name}</p>
-                  {c.phone && <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1 mt-0.5"><Phone size={11} /> {c.phone}</p>}
+                  {c.phone && <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1 mt-0.5"><Phone size={11} /> {formatPhone(c.phone)}</p>}
                 </div>
                 <div className="flex items-center gap-2">
+                  <button onClick={() => setModal({ type: "editarCliente", customer: c })} title="Editar cliente" className="text-[var(--text-muted)] hover:text-[var(--text)]">
+                    <Edit2 size={14} />
+                  </button>
                   <button onClick={() => setModal({ type: "novoVeiculo", customerId: c.id })} className="text-xs font-medium text-[var(--text)] hover:text-[var(--text)] flex items-center gap-1">
                     <Plus size={12} /> Veículo
                   </button>
@@ -678,9 +704,15 @@ function ClientesView({ data, companyId, refetch, setModal, isOwner, loyaltyThre
               {c.vehicles.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {c.vehicles.map((v) => (
-                    <span key={v.id} className="text-xs bg-zinc-700 text-zinc-300 rounded-lg px-2.5 py-1">
+                    <button
+                      key={v.id}
+                      onClick={() => setModal({ type: "editarVeiculo", vehicle: v })}
+                      title="Editar veículo"
+                      className="text-xs bg-zinc-700 text-zinc-300 hover:bg-zinc-600 rounded-lg px-2.5 py-1 flex items-center gap-1.5"
+                    >
                       {v.plate} · {v.model} {v.color ? `(${v.color})` : ""}
-                    </span>
+                      <Edit2 size={10} className="text-zinc-400" />
+                    </button>
                   ))}
                 </div>
               )}
@@ -1937,7 +1969,100 @@ function ModalRouter({ modal, setModal, data, companyId, refetch, myUserId }) {
   if (modal.type === "editarPedido") return <EditarPedidoModal data={data} refetch={refetch} close={close} order={modal.order} />;
   if (modal.type === "historicoCliente") return <HistoricoClienteModal data={data} customer={modal.customer} close={close} />;
   if (modal.type === "confirmarEntrega") return <ConfirmarEntregaModal data={data} refetch={refetch} close={close} order={modal.order} />;
+  if (modal.type === "editarCliente") return <EditarClienteModal refetch={refetch} close={close} customer={modal.customer} />;
+  if (modal.type === "editarVeiculo") return <EditarVeiculoModal refetch={refetch} close={close} vehicle={modal.vehicle} />;
   return null;
+}
+
+function EditarClienteModal({ refetch, close, customer }) {
+  const [name, setName] = useState(customer.name || "");
+  const [phone, setPhone] = useState(formatPhone(customer.phone || ""));
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (saving) return;
+    if (!name.trim()) return;
+    if (!isValidPhone(phone)) {
+      setError("Telefone inválido. Digite com DDD, só números (ex: 51999998888).");
+      return;
+    }
+    setError("");
+    setSaving(true);
+    try {
+      await db.updateCustomer(customer.id, { name: name.trim(), phone: onlyDigits(phone) });
+      refetch();
+      close();
+    } catch (e) {
+      setError("Não foi possível salvar: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <ModalShell title="Editar cliente" onClose={close}>
+      <div className="flex flex-col gap-3">
+        <Field label="Nome"><input value={name} onChange={(e) => setName(e.target.value)} className="input" /></Field>
+        <Field label="Telefone"><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(51) 99999-8888" className="input" /></Field>
+        {error && <p className="text-xs text-rose-400">{error}</p>}
+        <button onClick={save} disabled={saving} className="mt-2 bg-zinc-600 hover:bg-[var(--surface)] disabled:opacity-60 text-white font-medium text-sm py-3 rounded-xl">
+          {saving ? "Salvando..." : "Salvar alterações"}
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function EditarVeiculoModal({ refetch, close, vehicle }) {
+  const [plate, setPlate] = useState(vehicle.plate || "");
+  const [model, setModel] = useState(vehicle.model || "");
+  const [color, setColor] = useState(vehicle.color || "");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (saving) return;
+    if (!plate.trim()) return;
+    if (!isValidPlate(plate)) {
+      setError("Placa inválida. Use o formato ABC1234 ou ABC1D23.");
+      return;
+    }
+    setError("");
+    setSaving(true);
+    try {
+      await db.updateVehicle(vehicle.id, { plate: normalizePlate(plate), model: model.trim(), color: color.trim() });
+      refetch();
+      close();
+    } catch (e) {
+      setError("Não foi possível salvar: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async () => {
+    const ok = window.confirm("Remover esse veículo do cliente?");
+    if (!ok) return;
+    await db.deleteVehicle(vehicle.id);
+    refetch();
+    close();
+  };
+
+  return (
+    <ModalShell title="Editar veículo" onClose={close}>
+      <div className="flex flex-col gap-3">
+        <Field label="Placa"><input value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="ABC1234" className="input" /></Field>
+        <Field label="Modelo"><input value={model} onChange={(e) => setModel(e.target.value)} className="input" /></Field>
+        <Field label="Cor"><input value={color} onChange={(e) => setColor(e.target.value)} className="input" /></Field>
+        {error && <p className="text-xs text-rose-400">{error}</p>}
+        <button onClick={save} disabled={saving} className="mt-2 bg-zinc-600 hover:bg-[var(--surface)] disabled:opacity-60 text-white font-medium text-sm py-3 rounded-xl">
+          {saving ? "Salvando..." : "Salvar alterações"}
+        </button>
+        <button onClick={remove} className="text-xs text-rose-400 hover:text-rose-300 text-center">Remover veículo</button>
+      </div>
+    </ModalShell>
+  );
 }
 
 function NovoClienteModal({ data, companyId, refetch, close }) {
@@ -1946,28 +2071,50 @@ function NovoClienteModal({ data, companyId, refetch, close }) {
   const [plate, setPlate] = useState("");
   const [model, setModel] = useState("");
   const [color, setColor] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const save = async () => {
+    if (saving) return;
     if (!name.trim()) return;
-    await db.createCustomer(companyId, {
-      name: name.trim(),
-      phone: phone.trim(),
-      vehicle: plate.trim() ? { plate: plate.trim().toUpperCase(), model: model.trim(), color: color.trim() } : null,
-    });
-    refetch();
-    close();
+    if (!isValidPhone(phone)) {
+      setError("Telefone inválido. Digite com DDD, só números (ex: 51999998888).");
+      return;
+    }
+    if (plate.trim() && !isValidPlate(plate)) {
+      setError("Placa inválida. Use o formato ABC1234 ou ABC1D23.");
+      return;
+    }
+    setError("");
+    setSaving(true);
+    try {
+      await db.createCustomer(companyId, {
+        name: name.trim(),
+        phone: onlyDigits(phone),
+        vehicle: plate.trim() ? { plate: normalizePlate(plate), model: model.trim(), color: color.trim() } : null,
+      });
+      refetch();
+      close();
+    } catch (e) {
+      setError("Não foi possível salvar: " + e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <ModalShell title="Novo cliente" onClose={close}>
       <div className="flex flex-col gap-3">
         <Field label="Nome"><input value={name} onChange={(e) => setName(e.target.value)} className="input" /></Field>
-        <Field label="Telefone"><input value={phone} onChange={(e) => setPhone(e.target.value)} className="input" /></Field>
+        <Field label="Telefone"><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(51) 99999-8888" className="input" /></Field>
         <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mt-2">Veículo (opcional)</p>
-        <Field label="Placa"><input value={plate} onChange={(e) => setPlate(e.target.value)} className="input" /></Field>
+        <Field label="Placa"><input value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="ABC1234" className="input" /></Field>
         <Field label="Modelo"><input value={model} onChange={(e) => setModel(e.target.value)} className="input" /></Field>
         <Field label="Cor"><input value={color} onChange={(e) => setColor(e.target.value)} className="input" /></Field>
-        <button onClick={save} className="mt-2 bg-zinc-600 hover:bg-[var(--surface)] text-white font-medium text-sm py-3 rounded-xl">Salvar cliente</button>
+        {error && <p className="text-xs text-rose-400">{error}</p>}
+        <button onClick={save} disabled={saving} className="mt-2 bg-zinc-600 hover:bg-[var(--surface)] disabled:opacity-60 text-white font-medium text-sm py-3 rounded-xl">
+          {saving ? "Salvando..." : "Salvar cliente"}
+        </button>
       </div>
     </ModalShell>
   );
@@ -1977,21 +2124,39 @@ function NovoVeiculoModal({ companyId, refetch, close, customerId }) {
   const [plate, setPlate] = useState("");
   const [model, setModel] = useState("");
   const [color, setColor] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const save = async () => {
+    if (saving) return;
     if (!plate.trim()) return;
-    await db.createVehicle(companyId, customerId, { plate: plate.trim().toUpperCase(), model: model.trim(), color: color.trim() });
-    refetch();
-    close();
+    if (!isValidPlate(plate)) {
+      setError("Placa inválida. Use o formato ABC1234 ou ABC1D23.");
+      return;
+    }
+    setError("");
+    setSaving(true);
+    try {
+      await db.createVehicle(companyId, customerId, { plate: normalizePlate(plate), model: model.trim(), color: color.trim() });
+      refetch();
+      close();
+    } catch (e) {
+      setError("Não foi possível salvar: " + e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <ModalShell title="Novo veículo" onClose={close}>
       <div className="flex flex-col gap-3">
-        <Field label="Placa"><input value={plate} onChange={(e) => setPlate(e.target.value)} className="input" /></Field>
+        <Field label="Placa"><input value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="ABC1234" className="input" /></Field>
         <Field label="Modelo"><input value={model} onChange={(e) => setModel(e.target.value)} className="input" /></Field>
         <Field label="Cor"><input value={color} onChange={(e) => setColor(e.target.value)} className="input" /></Field>
-        <button onClick={save} className="mt-2 bg-zinc-600 hover:bg-[var(--surface)] text-white font-medium text-sm py-3 rounded-xl">Salvar veículo</button>
+        {error && <p className="text-xs text-rose-400">{error}</p>}
+        <button onClick={save} disabled={saving} className="mt-2 bg-zinc-600 hover:bg-[var(--surface)] disabled:opacity-60 text-white font-medium text-sm py-3 rounded-xl">
+          {saving ? "Salvando..." : "Salvar veículo"}
+        </button>
       </div>
     </ModalShell>
   );
@@ -2061,10 +2226,18 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
           setError("Preencha ao menos o nome do cliente e a placa.");
           return;
         }
+        if (!isValidPhone(newPhone)) {
+          setError("Telefone inválido. Digite com DDD, só números (ex: 51999998888).");
+          return;
+        }
+        if (!isValidPlate(newPlate)) {
+          setError("Placa inválida. Use o formato ABC1234 ou ABC1D23.");
+          return;
+        }
         const created = await db.createCustomer(companyId, {
           name: newName.trim(),
-          phone: newPhone.trim(),
-          vehicle: { plate: newPlate.trim().toUpperCase(), model: newModel.trim(), color: newColor.trim() },
+          phone: onlyDigits(newPhone),
+          vehicle: { plate: normalizePlate(newPlate), model: newModel.trim(), color: newColor.trim() },
         });
         // recarrega para pegar o veículo criado junto
         const fresh = await db.fetchAll(companyId);
