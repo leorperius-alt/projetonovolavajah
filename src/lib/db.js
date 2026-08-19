@@ -105,6 +105,21 @@ export async function deleteCustomer(id) {
   if (error) throw error;
 }
 
+export async function updateCustomer(id, { name, phone }) {
+  const { error } = await supabase.from("customers").update({ name, phone }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function updateVehicle(id, { plate, model, color }) {
+  const { error } = await supabase.from("vehicles").update({ plate, model, color }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteVehicle(id) {
+  const { error } = await supabase.from("vehicles").delete().eq("id", id);
+  if (error) throw error;
+}
+
 // ---- Serviços ----
 export async function createService(companyId, { name, price }) {
   const { error } = await supabase.from("services").insert({ company_id: companyId, name, price });
