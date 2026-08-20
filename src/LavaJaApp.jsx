@@ -176,13 +176,13 @@ export default function LavaJaApp({ onLogout }) {
         .input:focus { box-shadow: 0 0 0 2px var(--text-muted); border-color: var(--text-muted); }
       `}</style>
 
-      <div className="hidden md:flex md:flex-col w-56 shrink-0 bg-zinc-800 text-zinc-100 p-4">
+      <div className="hidden md:flex md:flex-col w-56 shrink-0 bg-zinc-800 text-zinc-100 p-4 overflow-y-auto">
         <div className="flex items-center gap-2 mb-1 px-2">
           <img src="/logo.png" alt="LavaJá" className="w-8 h-8 rounded-lg" />
           <span className="font-display font-semibold text-lg">LavaJá</span>
         </div>
         <p className="px-2 text-xs text-zinc-400/70 mb-6 truncate">{companyName}</p>
-        <nav className="flex flex-col gap-1 flex-1">
+        <nav className="flex flex-col gap-1">
           {NAV.map((n) => (
             <button
               key={n.id}
@@ -196,7 +196,7 @@ export default function LavaJaApp({ onLogout }) {
             </button>
           ))}
         </nav>
-        <button onClick={onLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-zinc-300/70 hover:bg-zinc-600/50">
+        <button onClick={onLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-zinc-300/70 hover:bg-zinc-600/50 mt-4">
           <LogOut size={18} /> Sair
         </button>
         <div className="mt-3 flex justify-center">
@@ -237,12 +237,12 @@ export default function LavaJaApp({ onLogout }) {
         {activeTab === "equipe" && isOwner && <EquipeView companyId={companyId} />}
       </div>
 
-      <div className="md:hidden fixed bottom-0 inset-x-0 bg-zinc-800 border-t border-zinc-700 flex justify-around py-1.5 z-30">
+      <div className="md:hidden fixed bottom-0 inset-x-0 bg-zinc-800 border-t border-zinc-700 flex overflow-x-auto gap-1 px-1 py-1.5 z-30">
         {NAV.map((n) => (
           <button
             key={n.id}
             onClick={() => setTab(n.id)}
-            className={`flex flex-col items-center gap-0.5 px-2 py-1 text-[11px] font-medium ${activeTab === n.id ? "text-zinc-200" : "text-zinc-400"}`}
+            className={`shrink-0 min-w-[64px] flex flex-col items-center gap-0.5 px-2 py-1 text-[11px] font-medium ${activeTab === n.id ? "text-zinc-200" : "text-zinc-400"}`}
           >
             <n.icon size={20} />
             {n.label}
@@ -360,9 +360,9 @@ function DashboardView({ data, setTab }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <div className="lg:col-span-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
           <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-3">Faturamento — últimos 14 dias</p>
-          <div className="flex items-end gap-1.5 h-32">
+          <div className="flex items-stretch gap-1.5 h-32">
             {dias.map((d) => (
-              <div key={d.iso} className="flex-1 flex flex-col items-center justify-end gap-1" title={`${d.label}: ${money(d.total)}`}>
+              <div key={d.iso} className="flex-1 h-full flex flex-col items-center justify-end gap-1" title={`${d.label}: ${money(d.total)}`}>
                 <div
                   className="w-full rounded-t bg-zinc-500 hover:bg-zinc-400 transition-all"
                   style={{ height: `${Math.max(4, (d.total / maxDia) * 100)}%` }}
