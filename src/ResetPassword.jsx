@@ -58,7 +58,7 @@ export default function ResetPassword({ onDone }) {
         </div>
       </div>
       <style>{`
-        .input { width: 100%; padding: 0.6rem 0.75rem; border-radius: 0.6rem; border: 1px solid var(--border); background-color: var(--surface); color: var(--text); font-size: 0.875rem; outline: none; }
+        .input { width: 100%; padding: 0.85rem 0.9rem; border-radius: 0.7rem; border: 1px solid var(--border); background-color: var(--surface); color: var(--text); font-size: 1rem; outline: none; }
         .input::placeholder { color: var(--text-muted); }
         .input:focus { box-shadow: 0 0 0 2px var(--text-muted); border-color: var(--text-muted); }
       `}</style>
