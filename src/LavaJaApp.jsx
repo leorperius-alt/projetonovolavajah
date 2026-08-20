@@ -56,6 +56,7 @@ export default function LavaJaApp({ onLogout }) {
   const [companyId, setCompanyId] = useState(null);
   const [companyName, setCompanyName] = useState("");
   const [loyaltyThreshold, setLoyaltyThreshold] = useState(10);
+  const [relatoriosInitialDate, setRelatoriosInitialDate] = useState(null);
   const [myRole, setMyRole] = useState(null);
   const [myUserId, setMyUserId] = useState(null);
   const [blocked, setBlocked] = useState(false);
@@ -171,7 +172,7 @@ export default function LavaJaApp({ onLogout }) {
       <style>{`
         .font-display { font-family: 'Space Grotesk', sans-serif; }
         .font-num { font-family: 'JetBrains Mono', monospace; }
-        .input { width: 100%; padding: 0.6rem 0.75rem; border-radius: 0.6rem; border: 1px solid var(--border); background-color: var(--surface); color: var(--text); font-size: 0.875rem; outline: none; }
+        .input { width: 100%; padding: 0.85rem 0.9rem; border-radius: 0.7rem; border: 1px solid var(--border); background-color: var(--surface); color: var(--text); font-size: 1rem; outline: none; }
         .input::placeholder { color: var(--text-muted); }
         .input:focus { box-shadow: 0 0 0 2px var(--text-muted); border-color: var(--text-muted); }
       `}</style>
@@ -214,8 +215,17 @@ export default function LavaJaApp({ onLogout }) {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-20 md:pb-0">
-        {activeTab === "dashboard" && isOwner && <DashboardView data={data} setTab={setTab} />}
+      <div className="flex-1 overflow-y-auto pb-24 md:pb-0">
+        {activeTab === "dashboard" && isOwner && (
+          <DashboardView
+            data={data}
+            setTab={setTab}
+            onSelectDay={(iso) => {
+              setRelatoriosInitialDate(iso);
+              setTab("relatorios");
+            }}
+          />
+        )}
         {activeTab === "fila" && <FilaView data={data} companyId={companyId} companyName={companyName} refetch={refetch} setModal={setModal} />}
         {activeTab === "agenda" && <AgendaView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "clientes" && (
@@ -232,19 +242,21 @@ export default function LavaJaApp({ onLogout }) {
         {activeTab === "servicos" && <ServicosView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "estoque" && <EstoqueView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "financeiro" && isOwner && <FinanceiroView data={data} companyId={companyId} refetch={refetch} />}
-        {activeTab === "relatorios" && isOwner && <RelatoriosView data={data} />}
+        {activeTab === "relatorios" && isOwner && (
+          <RelatoriosView data={data} initialDate={relatoriosInitialDate} onConsumedInitialDate={() => setRelatoriosInitialDate(null)} />
+        )}
         {activeTab === "comissoes" && isOwner && <ComissoesView data={data} />}
         {activeTab === "equipe" && isOwner && <EquipeView companyId={companyId} />}
       </div>
 
-      <div className="md:hidden fixed bottom-0 inset-x-0 bg-zinc-800 border-t border-zinc-700 flex overflow-x-auto gap-1 px-1 py-1.5 z-30">
+      <div className="md:hidden fixed bottom-0 inset-x-0 bg-zinc-800 border-t border-zinc-700 flex overflow-x-auto gap-1 px-1 py-2 z-30">
         {NAV.map((n) => (
           <button
             key={n.id}
             onClick={() => setTab(n.id)}
-            className={`shrink-0 min-w-[64px] flex flex-col items-center gap-0.5 px-2 py-1 text-[11px] font-medium ${activeTab === n.id ? "text-zinc-200" : "text-zinc-400"}`}
+            className={`shrink-0 min-w-[72px] flex flex-col items-center gap-1 px-2 py-2 rounded-lg text-[12px] font-medium ${activeTab === n.id ? "text-zinc-100 bg-zinc-700" : "text-zinc-400"}`}
           >
-            <n.icon size={20} />
+            <n.icon size={24} />
             {n.label}
           </button>
         ))}
@@ -272,7 +284,7 @@ function OrderServicesLine({ data, order }) {
   return <p className="text-xs text-[var(--text-secondary)] truncate">{[...names, ...extraNames].join(", ")}</p>;
 }
 
-function DashboardView({ data, setTab }) {
+function DashboardView({ data, setTab, onSelectDay }) {
   const hoje = todayStr();
   const ontemDate = new Date();
   ontemDate.setDate(ontemDate.getDate() - 1);
@@ -359,16 +371,27 @@ function DashboardView({ data, setTab }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <div className="lg:col-span-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-          <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-3">Faturamento — últimos 14 dias</p>
-          <div className="flex items-stretch gap-1.5 h-32">
+          <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-1">Faturamento — últimos 14 dias</p>
+          <p className="text-[11px] text-[var(--text-muted)] mb-3">Valores em R$ · toque num dia pra ver o relatório dele</p>
+          <div className="flex items-stretch gap-1.5 h-40">
             {dias.map((d) => (
-              <div key={d.iso} className="flex-1 h-full flex flex-col items-center justify-end gap-1" title={`${d.label}: ${money(d.total)}`}>
-                <div
-                  className="w-full rounded-t bg-zinc-500 hover:bg-zinc-400 transition-all"
-                  style={{ height: `${Math.max(4, (d.total / maxDia) * 100)}%` }}
-                />
+              <button
+                key={d.iso}
+                onClick={() => onSelectDay(d.iso)}
+                title={`Ver relatório de ${d.label}: ${money(d.total)}`}
+                className="flex-1 h-full flex flex-col items-center justify-end gap-1 rounded-lg hover:bg-[var(--bg)] transition-colors py-1"
+              >
+                <span className="text-[9px] sm:text-[10px] font-num text-[var(--text-secondary)] leading-none whitespace-nowrap">
+                  {d.total > 0 ? Math.round(d.total) : ""}
+                </span>
+                <div className="w-full flex-1 flex items-end min-h-0">
+                  <div
+                    className="w-full rounded-t bg-zinc-500 hover:bg-zinc-400 transition-all"
+                    style={{ height: `${Math.max(4, (d.total / maxDia) * 100)}%` }}
+                  />
+                </div>
                 <span className="text-[9px] text-[var(--text-muted)]">{d.label}</span>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -481,11 +504,11 @@ function FilaView({ data, companyName, refetch, setModal }) {
                       <div className="flex items-start justify-between gap-2">
                         <OrderCustomerLine data={data} order={order} />
                         <div className="flex items-center gap-1 shrink-0">
-                          <button onClick={() => setModal({ type: "editarPedido", order })} title="Editar pedido" className="text-[var(--text-muted)] hover:text-[var(--text)]">
-                            <Edit2 size={14} />
+                          <button onClick={() => setModal({ type: "editarPedido", order })} title="Editar pedido" className="text-[var(--text-muted)] hover:text-[var(--text)] p-1.5 -m-1.5">
+                            <Edit2 size={17} />
                           </button>
-                          <button onClick={() => cancelar(order)} title="Cancelar pedido" className="text-[var(--text-muted)] hover:text-rose-400">
-                            <XCircle size={15} />
+                          <button onClick={() => cancelar(order)} title="Cancelar pedido" className="text-[var(--text-muted)] hover:text-rose-400 p-1.5 -m-1.5">
+                            <XCircle size={18} />
                           </button>
                         </div>
                       </div>
@@ -496,12 +519,12 @@ function FilaView({ data, companyName, refetch, setModal }) {
                       </div>
                       <div className="mt-2 flex flex-col gap-1.5">
                         {col.key === "aguardando" && (
-                          <button onClick={() => advance(order, "lavando")} className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-sky-600 hover:bg-sky-700 text-white rounded-lg py-2">
+                          <button onClick={() => advance(order, "lavando")} className="w-full flex items-center justify-center gap-2 text-sm font-medium bg-sky-600 hover:bg-sky-700 text-white rounded-lg py-3">
                             <PlayCircle size={14} /> Iniciar lavagem
                           </button>
                         )}
                         {col.key === "lavando" && (
-                          <button onClick={() => advance(order, "pronto")} className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-zinc-500 hover:bg-zinc-600 text-white rounded-lg py-2">
+                          <button onClick={() => advance(order, "pronto")} className="w-full flex items-center justify-center gap-2 text-sm font-medium bg-zinc-500 hover:bg-zinc-600 text-white rounded-lg py-3">
                             <CheckCircle2 size={14} /> Marcar pronto
                           </button>
                         )}
@@ -512,14 +535,14 @@ function FilaView({ data, companyName, refetch, setModal }) {
                                 href={link}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg py-2"
+                                className="w-full flex items-center justify-center gap-2 text-sm font-medium bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg py-3"
                               >
                                 <MessageCircle size={14} /> Avisar no WhatsApp
                               </a>
                             ) : (
                               <p className="text-[11px] text-[var(--text-muted)] text-center">Cliente sem telefone cadastrado</p>
                             )}
-                            <button onClick={() => setModal({ type: "confirmarEntrega", order })} className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-zinc-600 hover:bg-zinc-500 text-white rounded-lg py-2">
+                            <button onClick={() => setModal({ type: "confirmarEntrega", order })} className="w-full flex items-center justify-center gap-2 text-sm font-medium bg-zinc-600 hover:bg-zinc-500 text-white rounded-lg py-3">
                               <Check size={14} /> Entregar
                             </button>
                           </>
@@ -594,11 +617,11 @@ function AgendaView({ data, refetch, setModal }) {
                     <OrderServicesLine data={data} order={order} />
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <button onClick={() => setModal({ type: "editarPedido", order })} title="Editar" className="text-[var(--text-muted)] hover:text-[var(--text)]">
-                      <Edit2 size={14} />
+                    <button onClick={() => setModal({ type: "editarPedido", order })} title="Editar" className="text-[var(--text-muted)] hover:text-[var(--text)] p-1.5 -m-1.5">
+                      <Edit2 size={17} />
                     </button>
-                    <button onClick={() => cancelar(order)} title="Cancelar" className="text-[var(--text-muted)] hover:text-rose-400">
-                      <XCircle size={15} />
+                    <button onClick={() => cancelar(order)} title="Cancelar" className="text-[var(--text-muted)] hover:text-rose-400 p-1.5 -m-1.5">
+                      <XCircle size={18} />
                     </button>
                     <div className="text-right">
                       <p className="font-num text-sm font-semibold">{money(order.total)}</p>
@@ -690,14 +713,14 @@ function ClientesView({ data, companyId, refetch, setModal, isOwner, loyaltyThre
                   {c.phone && <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1 mt-0.5"><Phone size={11} /> {formatPhone(c.phone)}</p>}
                 </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setModal({ type: "editarCliente", customer: c })} title="Editar cliente" className="text-[var(--text-muted)] hover:text-[var(--text)]">
-                    <Edit2 size={14} />
+                  <button onClick={() => setModal({ type: "editarCliente", customer: c })} title="Editar cliente" className="text-[var(--text-muted)] hover:text-[var(--text)] p-1.5 -m-1.5">
+                    <Edit2 size={17} />
                   </button>
                   <button onClick={() => setModal({ type: "novoVeiculo", customerId: c.id })} className="text-xs font-medium text-[var(--text)] hover:text-[var(--text)] flex items-center gap-1">
                     <Plus size={12} /> Veículo
                   </button>
-                  <button onClick={() => removeCustomer(c.id)} className="text-[var(--text-muted)] hover:text-rose-400">
-                    <Trash2 size={15} />
+                  <button onClick={() => removeCustomer(c.id)} className="text-[var(--text-muted)] hover:text-rose-400 p-1.5 -m-1.5">
+                    <Trash2 size={18} />
                   </button>
                 </div>
               </div>
@@ -904,8 +927,8 @@ function ServicosView({ data, companyId, refetch, setModal }) {
               >
                 <Package size={15} />
               </button>
-              <button onClick={() => remove(s.id)} className="text-[var(--text-muted)] hover:text-rose-400">
-                <Trash2 size={15} />
+              <button onClick={() => remove(s.id)} className="text-[var(--text-muted)] hover:text-rose-400 p-1.5 -m-1.5">
+                <Trash2 size={18} />
               </button>
             </div>
           );
@@ -1046,8 +1069,8 @@ function FinanceiroView({ data, companyId, refetch }) {
               <p className="text-xs text-[var(--text-secondary)]">{new Date(exp.expense_date + "T00:00:00").toLocaleDateString("pt-BR")}</p>
             </div>
             <span className="font-num text-sm font-semibold text-rose-400">{money(exp.amount)}</span>
-            <button onClick={() => removeExpense(exp.id)} className="text-[var(--text-muted)] hover:text-rose-400">
-              <Trash2 size={15} />
+            <button onClick={() => removeExpense(exp.id)} className="text-[var(--text-muted)] hover:text-rose-400 p-1.5 -m-1.5">
+              <Trash2 size={18} />
             </button>
           </div>
         ))}
@@ -1056,14 +1079,20 @@ function FinanceiroView({ data, companyId, refetch }) {
   );
 }
 
-function RelatoriosView({ data }) {
+function RelatoriosView({ data, initialDate, onConsumedInitialDate }) {
   const [start, setStart] = useState(() => {
+    if (initialDate) return initialDate;
     const d = new Date();
     d.setDate(d.getDate() - 30);
     return d.toISOString().slice(0, 10);
   });
-  const [end, setEnd] = useState(todayStr());
+  const [end, setEnd] = useState(() => initialDate || todayStr());
   const [servicoSelecionado, setServicoSelecionado] = useState(null);
+
+  useEffect(() => {
+    if (initialDate && onConsumedInitialDate) onConsumedInitialDate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const ordersInRange = data.orders.filter((o) => {
     if (o.status !== "entregue") return false;
@@ -1366,7 +1395,7 @@ function EstoqueView({ data, companyId, refetch, setModal }) {
                   <ArrowDownCircle size={16} />
                 </button>
                 <button onClick={() => remove(p)} title="Remover produto" className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-rose-400">
-                  <Trash2 size={15} />
+                  <Trash2 size={18} />
                 </button>
               </div>
             </div>
@@ -1532,8 +1561,8 @@ function VincularProdutosModal({ data, companyId, refetch, close, servico }) {
                 <Package size={15} className="text-[var(--text-secondary)] shrink-0" />
                 <span className="flex-1 text-sm">{p ? p.name : "Produto removido"}</span>
                 <span className="font-num text-sm text-[var(--text-secondary)]">{v.quantity} {p?.unit || ""}</span>
-                <button onClick={() => remove(v.id)} className="text-[var(--text-muted)] hover:text-rose-400">
-                  <X size={15} />
+                <button onClick={() => remove(v.id)} className="text-[var(--text-muted)] hover:text-rose-400 p-1.5 -m-1.5">
+                  <X size={17} />
                 </button>
               </div>
             );
@@ -1739,7 +1768,7 @@ function EditarPedidoModal({ data, refetch, close, order }) {
                 <span className="flex-1 text-sm font-semibold text-amber-200">{e.name}</span>
                 <span className="font-num text-sm font-semibold text-amber-400">{money(e.price)}</span>
                 <button onClick={() => removeExtraService(e.id)} className="text-amber-500 hover:text-rose-400">
-                  <X size={14} />
+                  <X size={16} />
                 </button>
               </div>
             ))}
@@ -1770,8 +1799,8 @@ function EditarPedidoModal({ data, refetch, close, order }) {
                 <Package size={14} className="text-[var(--text-secondary)] shrink-0" />
                 <span className="flex-1 text-sm">{e.name}</span>
                 <span className="font-num text-sm text-[var(--text-secondary)]">{e.quantity} {e.unit}</span>
-                <button onClick={() => removeExtraProduct(e.id)} className="text-[var(--text-muted)] hover:text-rose-400">
-                  <X size={14} />
+                <button onClick={() => removeExtraProduct(e.id)} className="text-[var(--text-muted)] hover:text-rose-400 p-1.5 -m-1.5">
+                  <X size={16} />
                 </button>
               </div>
             ))}
@@ -1921,7 +1950,7 @@ function EquipeView({ companyId }) {
                   title={p.blocked ? "Desbloquear acesso" : "Bloquear acesso"}
                   className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg ${p.blocked ? "bg-zinc-700 text-zinc-100 hover:bg-zinc-600" : "bg-amber-950 text-amber-300 hover:bg-amber-800"}`}
                 >
-                  {p.blocked ? <ShieldCheck size={13} /> : <ShieldOff size={13} />}
+                  {p.blocked ? <ShieldCheck size={15} /> : <ShieldOff size={15} />}
                   {p.blocked ? "Desbloquear" : "Bloquear"}
                 </button>
                 <button
@@ -1929,7 +1958,7 @@ function EquipeView({ companyId }) {
                   title="Remover da equipe"
                   className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-zinc-700 text-zinc-300 hover:bg-rose-950 hover:text-rose-400"
                 >
-                  <UserX size={13} />
+                  <UserX size={15} />
                 </button>
               </div>
             )}
@@ -2366,7 +2395,7 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
                 <span className="flex-1 text-sm font-semibold text-amber-200">{e.name}</span>
                 <span className="font-num text-sm font-semibold text-amber-300">{money(e.price)}</span>
                 <button onClick={() => removeExtraService(e.id)} className="text-amber-500 hover:text-rose-400">
-                  <X size={14} />
+                  <X size={16} />
                 </button>
               </div>
             ))}
@@ -2398,8 +2427,8 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
                 <Package size={14} className="text-[var(--text-secondary)] shrink-0" />
                 <span className="flex-1 text-sm">{e.name}</span>
                 <span className="font-num text-sm text-[var(--text-secondary)]">{e.quantity} {e.unit}</span>
-                <button onClick={() => removeExtraProduct(e.id)} className="text-[var(--text-muted)] hover:text-rose-400">
-                  <X size={14} />
+                <button onClick={() => removeExtraProduct(e.id)} className="text-[var(--text-muted)] hover:text-rose-400 p-1.5 -m-1.5">
+                  <X size={16} />
                 </button>
               </div>
             ))}
