@@ -347,3 +347,39 @@ export async function updateOrderServices(order, updates, serviceProducts) {
     await consumeOrderStock(updates.service_ids, updates.extra_products, serviceProducts, "Ajuste — edição de pedido");
   }
 }
+
+// ---- Administração da plataforma (multi-empresa) ----
+export async function checkIsPlatformAdmin() {
+  const { data, error } = await supabase.rpc("is_platform_admin");
+  if (error) return false;
+  return !!data;
+}
+
+export async function fetchAllCompanies() {
+  const { data, error } = await supabase.from("companies").select("id, name, created_at").order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchAllOwnerInvites() {
+  const { data, error } = await supabase
+    .from("invites")
+    .select("*")
+    .eq("role", "owner")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function adminCreateCompanyWithOwnerInvite(name, email) {
+  const { data: companyId, error: companyError } = await supabase.rpc("admin_create_company", { p_name: name });
+  if (companyError) throw companyError;
+
+  const { data: token, error: inviteError } = await supabase.rpc("admin_create_owner_invite", {
+    p_company_id: companyId,
+    p_email: email || null,
+  });
+  if (inviteError) throw inviteError;
+
+  return { companyId, token };
+}
