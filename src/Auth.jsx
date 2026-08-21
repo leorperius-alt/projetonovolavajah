@@ -2,10 +2,8 @@ import React, { useState } from "react";
 import { supabase } from "./supabaseClient";
 import ThemeToggle from "./ThemeToggle.jsx";
 
-export default function Auth({ onAuthed }) {
-  const [mode, setMode] = useState("login"); // login | signup | forgot
-  const [companyName, setCompanyName] = useState("");
-  const [name, setName] = useState("");
+export default function Auth() {
+  const [mode, setMode] = useState("login"); // login | forgot
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -18,42 +16,6 @@ export default function Auth({ onAuthed }) {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) setError("E-mail ou senha incorretos.");
-    else onAuthed();
-  };
-
-  const handleSignup = async () => {
-    if (!companyName.trim() || !name.trim() || !email.trim() || password.length < 6) {
-      setError("Preencha todos os campos (senha com pelo menos 6 caracteres).");
-      return;
-    }
-    setLoading(true);
-    setError("");
-
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
-    if (signUpError) {
-      setLoading(false);
-      setError(signUpError.message === "User already registered" ? "Este e-mail já está cadastrado." : signUpError.message);
-      return;
-    }
-
-    const userId = signUpData.user?.id;
-    if (!userId) {
-      setLoading(false);
-      setError("Verifique seu e-mail para confirmar o cadastro e depois faça login.");
-      return;
-    }
-
-    const { error: rpcError } = await supabase.rpc("create_company", {
-      p_name: companyName.trim(),
-      p_full_name: name.trim(),
-    });
-
-    setLoading(false);
-    if (rpcError) {
-      setError("Erro ao criar empresa: " + rpcError.message);
-      return;
-    }
-    onAuthed();
   };
 
   const handleForgotPassword = async () => {
@@ -91,23 +53,6 @@ export default function Auth({ onAuthed }) {
         </div>
 
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6">
-          {mode !== "forgot" && (
-            <div className="flex gap-2 mb-5">
-              <button
-                onClick={() => setMode("login")}
-                className={`flex-1 text-sm font-medium py-2 rounded-lg ${mode === "login" ? "bg-zinc-600 text-white" : "bg-zinc-700 text-zinc-300"}`}
-              >
-                Entrar
-              </button>
-              <button
-                onClick={() => setMode("signup")}
-                className={`flex-1 text-sm font-medium py-2 rounded-lg ${mode === "signup" ? "bg-zinc-600 text-white" : "bg-zinc-700 text-zinc-300"}`}
-              >
-                Criar empresa
-              </button>
-            </div>
-          )}
-
           {mode === "forgot" ? (
             forgotSent ? (
               <div className="flex flex-col gap-3">
@@ -139,16 +84,6 @@ export default function Auth({ onAuthed }) {
             )
           ) : (
             <div className="flex flex-col gap-3">
-              {mode === "signup" && (
-                <>
-                  <Field label="Nome da sua lavagem">
-                    <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="input" placeholder="Ex: Lava-rápido do João" />
-                  </Field>
-                  <Field label="Seu nome">
-                    <input value={name} onChange={(e) => setName(e.target.value)} className="input" />
-                  </Field>
-                </>
-              )}
               <Field label="E-mail">
                 <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className="input" />
               </Field>
@@ -156,29 +91,25 @@ export default function Auth({ onAuthed }) {
                 <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" className="input" />
               </Field>
 
-              {mode === "login" && (
-                <button onClick={() => { setMode("forgot"); setError(""); }} className="text-xs text-[var(--text)] hover:text-[var(--text)] text-right -mt-1">
-                  Esqueci minha senha
-                </button>
-              )}
+              <button onClick={() => { setMode("forgot"); setError(""); }} className="text-xs text-[var(--text)] hover:text-[var(--text)] text-right -mt-1">
+                Esqueci minha senha
+              </button>
 
               {error && <p className="text-xs text-rose-400">{error}</p>}
 
               <button
                 disabled={loading}
-                onClick={mode === "login" ? handleLogin : handleSignup}
+                onClick={handleLogin}
                 className="mt-2 bg-zinc-500 hover:bg-zinc-400 disabled:opacity-60 text-white font-medium text-sm py-3 rounded-xl"
               >
-                {loading ? "Aguarde..." : mode === "login" ? "Entrar" : "Criar minha empresa"}
+                {loading ? "Aguarde..." : "Entrar"}
               </button>
             </div>
           )}
         </div>
-        {mode === "signup" && (
-          <p className="text-xs text-[var(--text-secondary)] text-center mt-4">
-            Depois de criar a empresa, convide seus funcionários pela aba Equipe do painel.
-          </p>
-        )}
+        <p className="text-xs text-[var(--text-secondary)] text-center mt-4">
+          Ainda não tem conta? Peça um link de acesso pra quem administra o LavaJá.
+        </p>
       </div>
       <style>{`
         .input { width: 100%; padding: 0.85rem 0.9rem; border-radius: 0.7rem; border: 1px solid var(--border); background-color: var(--surface); color: var(--text); font-size: 1rem; outline: none; }
