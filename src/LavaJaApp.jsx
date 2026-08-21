@@ -4,7 +4,7 @@ import {
   Search, Droplets, CheckCircle2, PlayCircle, LogIn, Banknote, LogOut, UserPlus, Copy, Mail,
   TrendingDown, FileBarChart, Download, ChevronRight, ShieldOff, ShieldCheck, UserX,
   Package, ArrowDownCircle, ArrowUpCircle, History, AlertTriangle, MessageCircle, Percent,
-  Edit2, XCircle, LayoutDashboard, ArrowUp, ArrowDown, Minus, CreditCard, FileText,
+  Edit2, XCircle, LayoutDashboard, ArrowUp, ArrowDown, Minus, CreditCard, FileText, Crown,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./lib/db";
@@ -58,6 +58,7 @@ export default function LavaJaApp({ onLogout }) {
   const [loyaltyThreshold, setLoyaltyThreshold] = useState(10);
   const [relatoriosInitialDate, setRelatoriosInitialDate] = useState(null);
   const [myRole, setMyRole] = useState(null);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [myUserId, setMyUserId] = useState(null);
   const [blocked, setBlocked] = useState(false);
   const [data, setData] = useState({ customers: [], services: [], orders: [], expenses: [], products: [], serviceProducts: [], team: [] });
@@ -88,7 +89,8 @@ export default function LavaJaApp({ onLogout }) {
       const { data: auth } = await supabase.auth.getUser();
       setMyUserId(auth?.user?.id || null);
 
-      const profile = await loadProfileWithRetry();
+      const [profile, admin] = await Promise.all([loadProfileWithRetry(), db.checkIsPlatformAdmin()]);
+      setIsPlatformAdmin(admin);
       if (profile?.blocked) {
         setBlocked(true);
         setLoading(false);
@@ -98,6 +100,7 @@ export default function LavaJaApp({ onLogout }) {
       setCompanyId(cid);
       setMyRole(profile?.role || null);
       if (profile?.role === "owner") setTab("dashboard");
+      else if (!cid && admin) setTab("admin");
       if (cid) {
         const { data: company } = await supabase.from("companies").select("name, loyalty_threshold").eq("id", cid).single();
         setCompanyName(company?.name || "");
@@ -139,7 +142,7 @@ export default function LavaJaApp({ onLogout }) {
     );
   }
 
-  if (!companyId) {
+  if (!companyId && !isPlatformAdmin) {
     return (
       <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] flex flex-col items-center justify-center gap-3 text-center px-4">
         <p className="text-[var(--text-secondary)] font-medium">Não conseguimos encontrar sua empresa ainda.</p>
@@ -163,9 +166,14 @@ export default function LavaJaApp({ onLogout }) {
     { id: "relatorios", label: "Relatórios", icon: FileBarChart, ownerOnly: true },
     { id: "comissoes", label: "Comissões", icon: Percent, ownerOnly: true },
     { id: "equipe", label: "Equipe", icon: UserPlus, ownerOnly: true },
+    { id: "admin", label: "Admin", icon: Crown, platformAdminOnly: true },
   ];
-  const NAV = FULL_NAV.filter((n) => !n.ownerOnly || isOwner);
-  const activeTab = NAV.some((n) => n.id === tab) ? tab : "fila";
+  const NAV = FULL_NAV.filter((n) => {
+    if (n.platformAdminOnly) return isPlatformAdmin;
+    if (n.ownerOnly) return isOwner;
+    return !!companyId;
+  });
+  const activeTab = NAV.some((n) => n.id === tab) ? tab : companyId ? "fila" : "admin";
 
   return (
     <div className="w-full min-h-screen bg-[var(--bg)] text-[var(--text)] flex flex-col md:flex-row" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -247,6 +255,7 @@ export default function LavaJaApp({ onLogout }) {
         )}
         {activeTab === "comissoes" && isOwner && <ComissoesView data={data} />}
         {activeTab === "equipe" && isOwner && <EquipeView companyId={companyId} />}
+        {activeTab === "admin" && isPlatformAdmin && <AdminView />}
       </div>
 
       <div className="md:hidden fixed bottom-0 inset-x-0 bg-zinc-800 border-t border-zinc-700 flex overflow-x-auto gap-1 px-1 py-2 z-30">
@@ -1823,6 +1832,137 @@ function EditarPedidoModal({ data, refetch, close, order }) {
         </button>
       </div>
     </ModalShell>
+  );
+}
+
+function AdminView() {
+  const [companies, setCompanies] = useState([]);
+  const [invites, setInvites] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [novoLink, setNovoLink] = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
+
+  const load = useCallback(async () => {
+    const [c, i] = await Promise.all([db.fetchAllCompanies(), db.fetchAllOwnerInvites()]);
+    setCompanies(c);
+    setInvites(i);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const criar = async () => {
+    if (saving) return;
+    if (!name.trim()) return;
+    setSaving(true);
+    setError("");
+    try {
+      const { token } = await db.adminCreateCompanyWithOwnerInvite(name.trim(), email.trim());
+      setNovoLink(`${window.location.origin}${window.location.pathname}?convite=${token}`);
+      setName("");
+      setEmail("");
+      load();
+    } catch (e) {
+      setError("Não foi possível criar: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const copiarLink = (token, id) => {
+    const link = `${window.location.origin}${window.location.pathname}?convite=${token}`;
+    navigator.clipboard?.writeText(link);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  if (loading) return <div className="p-6 text-[var(--text-secondary)] text-sm">Carregando...</div>;
+
+  const pendentes = invites.filter((i) => !i.used_by);
+  const usados = invites.filter((i) => i.used_by);
+
+  return (
+    <div className="p-4 md:p-6">
+      <div className="flex items-center gap-2 mb-1">
+        <Crown size={20} className="text-amber-400" />
+        <h1 className="font-display text-xl font-semibold">Administração da plataforma</h1>
+      </div>
+      <p className="text-sm text-[var(--text-secondary)] mb-5">{companies.length} empresa(s) cadastrada(s) no LavaJá</p>
+
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-5">
+        <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2">Criar nova empresa</p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da empresa (ex: Lava-rápido do João)" className="flex-1 input" />
+          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-mail do dono (opcional)" className="sm:w-64 input" />
+          <button onClick={criar} disabled={saving} className="flex items-center justify-center gap-1.5 bg-zinc-600 hover:bg-zinc-500 disabled:opacity-60 text-white text-sm font-medium px-4 py-2.5 rounded-lg shrink-0">
+            <Plus size={15} /> {saving ? "Criando..." : "Criar e gerar convite"}
+          </button>
+        </div>
+        {error && <p className="text-xs text-rose-400 mt-2">{error}</p>}
+        {novoLink && (
+          <div className="mt-3 border border-emerald-800 bg-emerald-950 rounded-lg p-3 flex items-center gap-2 flex-wrap">
+            <p className="text-xs text-emerald-300 flex-1 break-all">{novoLink}</p>
+            <button
+              onClick={() => { navigator.clipboard?.writeText(novoLink); }}
+              className="flex items-center gap-1 text-xs font-medium bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg shrink-0"
+            >
+              <Copy size={12} /> Copiar link
+            </button>
+          </div>
+        )}
+        <p className="text-xs text-[var(--text-muted)] mt-2">Copie o link e envie pro dono da lavagem. Ele entra, cria a senha e já cai direto na empresa dele.</p>
+      </div>
+
+      {pendentes.length > 0 && (
+        <div className="mb-5">
+          <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2 px-1">Convites de dono pendentes</p>
+          <div className="flex flex-col gap-2">
+            {pendentes.map((inv) => {
+              const empresa = companies.find((c) => c.id === inv.company_id);
+              return (
+                <div key={inv.id} className="border border-amber-800 bg-amber-950 rounded-xl p-3 flex items-center gap-3">
+                  <Mail size={16} className="text-amber-400 shrink-0" />
+                  <span className="flex-1 text-sm text-amber-200">{empresa?.name || "Empresa"} {inv.email ? `· ${inv.email}` : ""}</span>
+                  <button onClick={() => copiarLink(inv.token, inv.id)} className="flex items-center gap-1 text-xs font-medium bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded-lg">
+                    <Copy size={12} /> {copiedId === inv.id ? "Copiado!" : "Copiar link"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2 px-1">Empresas cadastradas</p>
+      {companies.length === 0 && <p className="text-sm text-[var(--text-muted)]">Nenhuma empresa criada ainda.</p>}
+      <div className="flex flex-col gap-2">
+        {companies.map((c) => {
+          const conviteUsado = usados.find((i) => i.company_id === c.id);
+          const convitePendente = pendentes.find((i) => i.company_id === c.id);
+          return (
+            <div key={c.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{c.name}</p>
+                <p className="text-xs text-[var(--text-muted)]">Criada em {new Date(c.created_at).toLocaleDateString("pt-BR")}</p>
+              </div>
+              {conviteUsado ? (
+                <span className="text-xs font-medium px-2.5 py-1 rounded-lg bg-zinc-700 text-zinc-100">Dono já ativo</span>
+              ) : convitePendente ? (
+                <span className="text-xs font-medium px-2.5 py-1 rounded-lg bg-amber-950 text-amber-300">Aguardando dono</span>
+              ) : (
+                <span className="text-xs font-medium px-2.5 py-1 rounded-lg bg-zinc-700 text-zinc-300">Sem convite</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
