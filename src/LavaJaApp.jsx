@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./lib/db";
+import { reportError } from "./sentry.js";
 import ThemeToggle from "./ThemeToggle.jsx";
 
 const genLocalId = () => Math.random().toString(36).slice(2, 9);
@@ -1729,6 +1730,7 @@ function EditarPedidoModal({ data, refetch, close, order }) {
       refetch();
       close();
     } catch (e) {
+      reportError(e, { where: "salvar pedido/cadastro" });
       setError("Não foi possível salvar: " + e.message);
     } finally {
       setSaving(false);
@@ -2163,6 +2165,7 @@ function EditarClienteModal({ refetch, close, customer }) {
       refetch();
       close();
     } catch (e) {
+      reportError(e, { where: "salvar pedido/cadastro" });
       setError("Não foi possível salvar: " + e.message);
     } finally {
       setSaving(false);
@@ -2204,6 +2207,7 @@ function EditarVeiculoModal({ refetch, close, vehicle }) {
       refetch();
       close();
     } catch (e) {
+      reportError(e, { where: "salvar pedido/cadastro" });
       setError("Não foi possível salvar: " + e.message);
     } finally {
       setSaving(false);
@@ -2265,6 +2269,7 @@ function NovoClienteModal({ data, companyId, refetch, close }) {
       refetch();
       close();
     } catch (e) {
+      reportError(e, { where: "salvar pedido/cadastro" });
       setError("Não foi possível salvar: " + e.message);
     } finally {
       setSaving(false);
@@ -2310,6 +2315,7 @@ function NovoVeiculoModal({ companyId, refetch, close, customerId }) {
       refetch();
       close();
     } catch (e) {
+      reportError(e, { where: "salvar pedido/cadastro" });
       setError("Não foi possível salvar: " + e.message);
     } finally {
       setSaving(false);
@@ -2442,6 +2448,7 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
       refetch();
       close();
     } catch (e) {
+      reportError(e, { where: "salvar pedido/cadastro" });
       setError("Não foi possível salvar: " + e.message);
     } finally {
       setSaving(false);
