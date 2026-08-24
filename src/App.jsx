@@ -4,6 +4,7 @@ import Auth from "./Auth.jsx";
 import LavaJaApp from "./LavaJaApp.jsx";
 import InviteAccept from "./InviteAccept.jsx";
 import ResetPassword from "./ResetPassword.jsx";
+import { setSentryUser } from "./sentry.js";
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = carregando, null = deslogado
@@ -20,6 +21,14 @@ export default function App() {
     });
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (session?.user) {
+      setSentryUser({ id: session.user.id, email: session.user.email });
+    } else if (session === null) {
+      setSentryUser(null);
+    }
+  }, [session]);
 
   if (passwordRecovery) {
     return (
