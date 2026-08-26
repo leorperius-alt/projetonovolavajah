@@ -250,9 +250,9 @@ export default function LavaJaApp({ onLogout }) {
         )}
         {activeTab === "servicos" && <ServicosView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "estoque" && <EstoqueView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
-        {activeTab === "financeiro" && isOwner && <FinanceiroView data={data} companyId={companyId} refetch={refetch} />}
+        {activeTab === "financeiro" && isOwner && <FinanceiroView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "relatorios" && isOwner && (
-          <RelatoriosView data={data} initialDate={relatoriosInitialDate} onConsumedInitialDate={() => setRelatoriosInitialDate(null)} />
+          <RelatoriosView data={data} initialDate={relatoriosInitialDate} onConsumedInitialDate={() => setRelatoriosInitialDate(null)} setModal={setModal} />
         )}
         {activeTab === "comissoes" && isOwner && <ComissoesView data={data} />}
         {activeTab === "equipe" && isOwner && <EquipeView companyId={companyId} />}
@@ -272,7 +272,7 @@ export default function LavaJaApp({ onLogout }) {
         ))}
       </div>
 
-      {modal && <ModalRouter modal={modal} setModal={setModal} data={data} companyId={companyId} refetch={refetch} myUserId={myUserId} />}
+      {modal && <ModalRouter modal={modal} setModal={setModal} data={data} companyId={companyId} refetch={refetch} myUserId={myUserId} companyName={companyName} />}
     </div>
   );
 }
@@ -782,8 +782,10 @@ function ClientesView({ data, companyId, refetch, setModal, isOwner, loyaltyThre
   );
 }
 
-function ConfirmarEntregaModal({ data, refetch, close, order }) {
+function ConfirmarEntregaModal({ data, refetch, close, order, setModal, companyName }) {
   const [saving, setSaving] = useState(false);
+  const [entregue, setEntregue] = useState(false);
+  const [metodoEscolhido, setMetodoEscolhido] = useState(null);
   const customer = data.customers.find((c) => c.id === order.customer_id);
   const vehicle = customer?.vehicles.find((v) => v.id === order.vehicle_id);
 
@@ -800,11 +802,37 @@ function ConfirmarEntregaModal({ data, refetch, close, order }) {
     try {
       await db.finalizeDelivery(order.id, method);
       refetch();
-      close();
+      setMetodoEscolhido(method);
+      setEntregue(true);
     } finally {
       setSaving(false);
     }
   };
+
+  if (entregue) {
+    return (
+      <ModalShell title="Entrega registrada!" onClose={close}>
+        <div className="flex flex-col gap-3 items-center text-center py-2">
+          <CheckCircle2 size={40} className="text-emerald-500" />
+          <p className="text-sm text-[var(--text-secondary)]">Quer imprimir ou mandar o comprovante pro cliente?</p>
+          <button
+            onClick={() =>
+              setModal({
+                type: "comprovante",
+                order: { ...order, status: "entregue", payment_method: metodoEscolhido, paid: metodoEscolhido !== "a_faturar" },
+              })
+            }
+            className="w-full bg-zinc-600 hover:bg-zinc-500 text-white font-medium text-sm py-3 rounded-xl"
+          >
+            Ver comprovante
+          </button>
+          <button onClick={close} className="text-xs text-[var(--text-secondary)] hover:text-[var(--text)]">
+            Fechar sem imprimir
+          </button>
+        </div>
+      </ModalShell>
+    );
+  }
 
   return (
     <ModalShell title={`Entregar — ${vehicle?.plate || "veículo"}`} onClose={close}>
@@ -832,7 +860,7 @@ function ConfirmarEntregaModal({ data, refetch, close, order }) {
   );
 }
 
-function HistoricoClienteModal({ data, customer, close }) {
+function HistoricoClienteModal({ data, customer, close, setModal }) {
   const pedidos = data.orders
     .filter((o) => o.customer_id === customer.id && o.status === "entregue")
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -857,9 +885,14 @@ function HistoricoClienteModal({ data, customer, close }) {
       <div className="flex flex-col gap-2">
         {pedidos.map((o) => (
           <div key={o.id} className="border border-[var(--border)] rounded-xl p-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <OrderServicesLine data={data} order={o} />
-              <span className="font-num text-sm font-semibold text-[var(--text)] shrink-0 ml-2">{money(o.total)}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="font-num text-sm font-semibold text-[var(--text)]">{money(o.total)}</span>
+                <button onClick={() => setModal({ type: "comprovante", order: o })} title="Ver/imprimir comprovante" className="text-[var(--text-muted)] hover:text-[var(--text)] p-1.5 -m-1.5">
+                  <FileText size={16} />
+                </button>
+              </div>
             </div>
             <div className="flex items-center justify-between mt-1">
               <p className="text-xs text-[var(--text-muted)]">{dateTimeStr(o.created_at)}</p>
@@ -948,7 +981,7 @@ function ServicosView({ data, companyId, refetch, setModal }) {
   );
 }
 
-function FinanceiroView({ data, companyId, refetch }) {
+function FinanceiroView({ data, companyId, refetch, setModal }) {
   const [range, setRange] = useState("hoje");
   const [expDesc, setExpDesc] = useState("");
   const [expValor, setExpValor] = useState("");
@@ -1043,6 +1076,9 @@ function FinanceiroView({ data, companyId, refetch }) {
               <p className="text-xs text-[var(--text-muted)] mt-0.5">{dateTimeStr(order.created_at)}</p>
             </div>
             <span className="font-num text-sm font-semibold">{money(order.total)}</span>
+            <button onClick={() => setModal({ type: "comprovante", order })} title="Ver/imprimir comprovante" className="text-[var(--text-muted)] hover:text-[var(--text)] p-1.5 -m-1.5">
+              <FileText size={17} />
+            </button>
             <select
               value={order.payment_method || ""}
               onChange={(e) => alterarFormaPagamento(order, e.target.value)}
@@ -1089,7 +1125,7 @@ function FinanceiroView({ data, companyId, refetch }) {
   );
 }
 
-function RelatoriosView({ data, initialDate, onConsumedInitialDate }) {
+function RelatoriosView({ data, initialDate, onConsumedInitialDate, setModal }) {
   const [start, setStart] = useState(() => {
     if (initialDate) return initialDate;
     const d = new Date();
@@ -1263,6 +1299,9 @@ function RelatoriosView({ data, initialDate, onConsumedInitialDate }) {
                   <p className="text-xs text-[var(--text-muted)] mt-0.5">{dateTimeStr(o.created_at)} · {labelFormaPagamento(o.payment_method)}</p>
                 </div>
                 <span className="font-num text-sm font-semibold text-[var(--text)] shrink-0">{money(o.total)}</span>
+                <button onClick={() => setModal({ type: "comprovante", order: o })} title="Ver/imprimir comprovante" className="text-[var(--text-muted)] hover:text-[var(--text)] p-1.5 -m-1.5 shrink-0">
+                  <FileText size={16} />
+                </button>
                 <span className={`text-xs font-medium px-2.5 py-1 rounded-lg shrink-0 ${o.paid ? "bg-zinc-700 text-zinc-100" : "bg-amber-950 text-amber-300"}`}>
                   {o.paid ? "Pago" : "Pendente"}
                 </span>
@@ -1968,6 +2007,76 @@ function AdminView() {
   );
 }
 
+function ComprovanteModal({ data, close, order, companyName }) {
+  const customer = data.customers.find((c) => c.id === order.customer_id);
+  const vehicle = customer?.vehicles.find((v) => v.id === order.vehicle_id);
+
+  const servicos = [
+    ...(order.service_ids || [])
+      .map((id) => data.services.find((s) => s.id === id))
+      .filter(Boolean)
+      .map((s) => ({ name: s.name, price: s.price })),
+    ...(order.extra_services || []).map((e) => ({ name: e.name, price: e.price })),
+  ];
+
+  const metodoLabel = db.PAYMENT_METHODS.find((m) => m.value === order.payment_method)?.label || "Não informado";
+
+  return (
+    <ModalShell title="Comprovante" onClose={close}>
+      <div id="comprovante-print" className="bg-white text-black rounded-xl p-5" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="text-center mb-3">
+          <img src="/logo.png" alt="" className="w-14 h-14 mx-auto mb-1 rounded-lg" />
+          <p className="font-bold text-base">{companyName}</p>
+          <p className="text-xs text-gray-500">Comprovante de serviço</p>
+        </div>
+
+        <div className="text-xs border-t border-b border-gray-200 py-2 my-2 flex flex-col gap-1">
+          <div className="flex justify-between"><span className="text-gray-500">Data</span><span className="font-medium">{dateTimeStr(order.created_at)}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Cliente</span><span className="font-medium">{customer?.name || "—"}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Veículo</span><span className="font-medium">{vehicle?.plate || "—"} · {vehicle?.model || ""}</span></div>
+        </div>
+
+        <div className="text-xs flex flex-col gap-1.5 my-3">
+          {servicos.length === 0 && <p className="text-gray-400">Nenhum serviço registrado</p>}
+          {servicos.map((s, i) => (
+            <div key={i} className="flex justify-between">
+              <span>{s.name}</span>
+              <span className="font-medium">{money(s.price)}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-between font-bold text-sm border-t border-gray-200 pt-2 mt-2">
+          <span>Total</span>
+          <span>{money(order.total)}</span>
+        </div>
+        <div className="text-xs text-gray-500 flex justify-between mt-1">
+          <span>Forma de pagamento</span>
+          <span>{metodoLabel}</span>
+        </div>
+        <div className="text-xs text-gray-500 flex justify-between mt-0.5">
+          <span>Status</span>
+          <span>{order.paid ? "Pago" : "Pendente"}</span>
+        </div>
+
+        <p className="text-center text-xs text-gray-400 mt-5">Obrigado pela preferência! 🚗✨</p>
+      </div>
+
+      <button onClick={() => window.print()} className="w-full mt-4 flex items-center justify-center gap-2 bg-zinc-600 hover:bg-zinc-500 text-white font-medium text-sm py-3 rounded-xl">
+        <FileText size={16} /> Imprimir / Salvar PDF
+      </button>
+
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #comprovante-print, #comprovante-print * { visibility: visible; }
+          #comprovante-print { position: fixed; top: 0; left: 0; width: 100%; }
+        }
+      `}</style>
+    </ModalShell>
+  );
+}
+
 function EquipeView({ companyId }) {
   const [team, setTeam] = useState([]);
   const [invites, setInvites] = useState([]);
@@ -2127,7 +2236,7 @@ function ModalShell({ title, onClose, children }) {
   );
 }
 
-function ModalRouter({ modal, setModal, data, companyId, refetch, myUserId }) {
+function ModalRouter({ modal, setModal, data, companyId, refetch, myUserId, companyName }) {
   const close = () => setModal(null);
   if (modal.type === "novoCliente") return <NovoClienteModal data={data} companyId={companyId} refetch={refetch} close={close} />;
   if (modal.type === "novoVeiculo") return <NovoVeiculoModal data={data} companyId={companyId} refetch={refetch} close={close} customerId={modal.customerId} />;
@@ -2138,10 +2247,11 @@ function ModalRouter({ modal, setModal, data, companyId, refetch, myUserId }) {
   if (modal.type === "historicoEstoque") return <HistoricoEstoqueModal produto={modal.produto} close={close} />;
   if (modal.type === "vincularProdutos") return <VincularProdutosModal data={data} companyId={companyId} refetch={refetch} close={close} servico={modal.servico} />;
   if (modal.type === "editarPedido") return <EditarPedidoModal data={data} refetch={refetch} close={close} order={modal.order} />;
-  if (modal.type === "historicoCliente") return <HistoricoClienteModal data={data} customer={modal.customer} close={close} />;
-  if (modal.type === "confirmarEntrega") return <ConfirmarEntregaModal data={data} refetch={refetch} close={close} order={modal.order} />;
+  if (modal.type === "historicoCliente") return <HistoricoClienteModal data={data} customer={modal.customer} close={close} setModal={setModal} />;
+  if (modal.type === "confirmarEntrega") return <ConfirmarEntregaModal data={data} refetch={refetch} close={close} order={modal.order} setModal={setModal} companyName={companyName} />;
   if (modal.type === "editarCliente") return <EditarClienteModal refetch={refetch} close={close} customer={modal.customer} />;
   if (modal.type === "editarVeiculo") return <EditarVeiculoModal refetch={refetch} close={close} vehicle={modal.vehicle} />;
+  if (modal.type === "comprovante") return <ComprovanteModal data={data} close={close} order={modal.order} companyName={companyName} />;
   return null;
 }
 
