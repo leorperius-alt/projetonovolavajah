@@ -4,12 +4,15 @@ import Auth from "./Auth.jsx";
 import LavaJaApp from "./LavaJaApp.jsx";
 import InviteAccept from "./InviteAccept.jsx";
 import ResetPassword from "./ResetPassword.jsx";
+import MfaChallenge from "./MfaChallenge.jsx";
 import { setSentryUser } from "./sentry.js";
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = carregando, null = deslogado
   const [inviteToken, setInviteToken] = useState(() => new URLSearchParams(window.location.search).get("convite"));
   const [passwordRecovery, setPasswordRecovery] = useState(false);
+  const [needsMfa, setNeedsMfa] = useState(false);
+  const [checkingMfa, setCheckingMfa] = useState(true);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -28,6 +31,20 @@ export default function App() {
     } else if (session === null) {
       setSentryUser(null);
     }
+  }, [session]);
+
+  useEffect(() => {
+    (async () => {
+      if (!session) {
+        setNeedsMfa(false);
+        setCheckingMfa(false);
+        return;
+      }
+      setCheckingMfa(true);
+      const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      setNeedsMfa(data?.currentLevel === "aal1" && data?.nextLevel === "aal2");
+      setCheckingMfa(false);
+    })();
   }, [session]);
 
   if (passwordRecovery) {
@@ -57,12 +74,16 @@ export default function App() {
     );
   }
 
-  if (session === undefined) {
+  if (session === undefined || (session && checkingMfa)) {
     return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-500">Carregando...</div>;
   }
 
   if (!session) {
     return <Auth onAuthed={() => {}} />;
+  }
+
+  if (needsMfa) {
+    return <MfaChallenge onVerified={() => setNeedsMfa(false)} onLogout={() => supabase.auth.signOut()} />;
   }
 
   return <LavaJaApp onLogout={() => supabase.auth.signOut()} />;
