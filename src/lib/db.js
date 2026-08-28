@@ -192,6 +192,11 @@ export async function setLoyaltyThreshold(companyId, value) {
   if (error) throw error;
 }
 
+export async function setOverdueDaysThreshold(companyId, value) {
+  const { error } = await supabase.from("companies").update({ overdue_days_threshold: value }).eq("id", companyId);
+  if (error) throw error;
+}
+
 export async function setMemberBlocked(id, blocked) {
   const { error } = await supabase.from("profiles").update({ blocked }).eq("id", id);
   if (error) throw error;
@@ -382,4 +387,29 @@ export async function adminCreateCompanyWithOwnerInvite(name, email) {
   if (inviteError) throw inviteError;
 
   return { companyId, token };
+}
+
+// ---- Backup ----
+export async function exportCompanyBackup(companyId) {
+  const [customersRes, vehiclesRes, servicesRes, ordersRes, expensesRes, productsRes, serviceProductsRes, teamRes] = await Promise.all([
+    supabase.from("customers").select("*").eq("company_id", companyId),
+    supabase.from("vehicles").select("*").eq("company_id", companyId),
+    supabase.from("services").select("*").eq("company_id", companyId),
+    supabase.from("orders").select("*").eq("company_id", companyId),
+    supabase.from("expenses").select("*").eq("company_id", companyId),
+    supabase.from("products").select("*").eq("company_id", companyId),
+    supabase.from("service_products").select("*").eq("company_id", companyId),
+    supabase.from("profiles").select("id, full_name, role, commission_rate, created_at").eq("company_id", companyId),
+  ]);
+  return {
+    exportado_em: new Date().toISOString(),
+    clientes: customersRes.data || [],
+    veiculos: vehiclesRes.data || [],
+    servicos: servicesRes.data || [],
+    pedidos: ordersRes.data || [],
+    despesas: expensesRes.data || [],
+    produtos: productsRes.data || [],
+    vinculos_produto_servico: serviceProductsRes.data || [],
+    equipe: teamRes.data || [],
+  };
 }
