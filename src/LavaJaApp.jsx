@@ -57,6 +57,7 @@ export default function LavaJaApp({ onLogout }) {
   const [companyId, setCompanyId] = useState(null);
   const [companyName, setCompanyName] = useState("");
   const [loyaltyThreshold, setLoyaltyThreshold] = useState(10);
+  const [overdueDaysThreshold, setOverdueDaysThreshold] = useState(7);
   const [relatoriosInitialDate, setRelatoriosInitialDate] = useState(null);
   const [myRole, setMyRole] = useState(null);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
@@ -103,9 +104,10 @@ export default function LavaJaApp({ onLogout }) {
       if (profile?.role === "owner") setTab("dashboard");
       else if (!cid && admin) setTab("admin");
       if (cid) {
-        const { data: company } = await supabase.from("companies").select("name, loyalty_threshold").eq("id", cid).single();
+        const { data: company } = await supabase.from("companies").select("name, loyalty_threshold, overdue_days_threshold").eq("id", cid).single();
         setCompanyName(company?.name || "");
         setLoyaltyThreshold(company?.loyalty_threshold || 10);
+        setOverdueDaysThreshold(company?.overdue_days_threshold || 7);
         await refetch(cid);
       }
       setLoading(false);
@@ -126,6 +128,18 @@ export default function LavaJaApp({ onLogout }) {
     const unsubscribe = db.subscribeToChanges(companyId, () => refetch(companyId));
     return unsubscribe;
   }, [companyId, refetch]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    const onKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setModal({ type: "buscaGlobal" });
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [companyId]);
 
   if (loading) {
     return <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center text-[var(--text-secondary)]">Carregando...</div>;
@@ -191,7 +205,17 @@ export default function LavaJaApp({ onLogout }) {
           <img src="/logo.png" alt="LavaJá" className="w-8 h-8 rounded-lg" />
           <span className="font-display font-semibold text-lg">LavaJá</span>
         </div>
-        <p className="px-2 text-xs text-zinc-400/70 mb-6 truncate">{companyName}</p>
+        <p className="px-2 text-xs text-zinc-400/70 mb-3 truncate">{companyName}</p>
+        {companyId && (
+          <button
+            onClick={() => setModal({ type: "buscaGlobal" })}
+            className="flex items-center gap-2 px-3 py-2 mb-3 rounded-xl text-sm text-zinc-400 border border-zinc-700 hover:bg-zinc-700/50"
+          >
+            <Search size={15} />
+            Buscar
+            <span className="ml-auto text-[10px] text-zinc-500 border border-zinc-600 rounded px-1">Ctrl K</span>
+          </button>
+        )}
         <nav className="flex flex-col gap-1">
           {NAV.map((n) => (
             <button
@@ -206,7 +230,10 @@ export default function LavaJaApp({ onLogout }) {
             </button>
           ))}
         </nav>
-        <button onClick={onLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-zinc-300/70 hover:bg-zinc-600/50 mt-4">
+        <button onClick={() => setModal({ type: "seguranca" })} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-zinc-300/70 hover:bg-zinc-600/50 mt-2">
+          <ShieldCheck size={18} /> Segurança
+        </button>
+        <button onClick={onLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-zinc-300/70 hover:bg-zinc-600/50">
           <LogOut size={18} /> Sair
         </button>
         <div className="mt-3 flex justify-center">
@@ -218,6 +245,14 @@ export default function LavaJaApp({ onLogout }) {
         <img src="/logo.png" alt="LavaJá" className="w-7 h-7 rounded-lg" />
         <span className="font-display font-semibold">LavaJá</span>
         <span className="text-xs text-zinc-400/70 truncate flex-1 text-right">{companyName}</span>
+        {companyId && (
+          <button onClick={() => setModal({ type: "buscaGlobal" })} className="text-zinc-400/80 p-1.5 -m-1.5">
+            <Search size={18} />
+          </button>
+        )}
+        <button onClick={() => setModal({ type: "seguranca" })} className="text-zinc-400/80 p-1.5 -m-1.5">
+          <ShieldCheck size={18} />
+        </button>
         <ThemeToggle variant="dark" className="mr-1" />
         <button onClick={onLogout} className="text-zinc-400/80">
           <LogOut size={18} />
@@ -229,6 +264,7 @@ export default function LavaJaApp({ onLogout }) {
           <DashboardView
             data={data}
             setTab={setTab}
+            overdueDaysThreshold={overdueDaysThreshold}
             onSelectDay={(iso) => {
               setRelatoriosInitialDate(iso);
               setTab("relatorios");
@@ -250,7 +286,16 @@ export default function LavaJaApp({ onLogout }) {
         )}
         {activeTab === "servicos" && <ServicosView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "estoque" && <EstoqueView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
-        {activeTab === "financeiro" && isOwner && <FinanceiroView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
+        {activeTab === "financeiro" && isOwner && (
+          <FinanceiroView
+            data={data}
+            companyId={companyId}
+            refetch={refetch}
+            setModal={setModal}
+            overdueDaysThreshold={overdueDaysThreshold}
+            setOverdueDaysThreshold={setOverdueDaysThreshold}
+          />
+        )}
         {activeTab === "relatorios" && isOwner && (
           <RelatoriosView data={data} initialDate={relatoriosInitialDate} onConsumedInitialDate={() => setRelatoriosInitialDate(null)} setModal={setModal} />
         )}
@@ -272,7 +317,7 @@ export default function LavaJaApp({ onLogout }) {
         ))}
       </div>
 
-      {modal && <ModalRouter modal={modal} setModal={setModal} data={data} companyId={companyId} refetch={refetch} myUserId={myUserId} companyName={companyName} />}
+      {modal && <ModalRouter modal={modal} setModal={setModal} data={data} companyId={companyId} refetch={refetch} myUserId={myUserId} companyName={companyName} setTab={setTab} />}
     </div>
   );
 }
@@ -294,7 +339,7 @@ function OrderServicesLine({ data, order }) {
   return <p className="text-xs text-[var(--text-secondary)] truncate">{[...names, ...extraNames].join(", ")}</p>;
 }
 
-function DashboardView({ data, setTab, onSelectDay }) {
+function DashboardView({ data, setTab, onSelectDay, overdueDaysThreshold }) {
   const hoje = todayStr();
   const ontemDate = new Date();
   ontemDate.setDate(ontemDate.getDate() - 1);
@@ -302,6 +347,9 @@ function DashboardView({ data, setTab, onSelectDay }) {
   const mesAtual = hoje.slice(0, 7); // YYYY-MM
 
   const entregues = data.orders.filter((o) => o.status === "entregue");
+  const diasDesde = (iso) => Math.floor((Date.now() - new Date(iso).getTime()) / (24 * 3600 * 1000));
+  const vencidas = entregues.filter((o) => !o.paid && diasDesde(o.created_at) >= overdueDaysThreshold);
+  const totalVencido = vencidas.reduce((s, o) => s + o.total, 0);
   const pagosHoje = entregues.filter((o) => o.paid && dateStrOf(o.created_at) === hoje).reduce((s, o) => s + o.total, 0);
   const pagosOntem = entregues.filter((o) => o.paid && dateStrOf(o.created_at) === ontem).reduce((s, o) => s + o.total, 0);
   const lavagensHoje = entregues.filter((o) => dateStrOf(o.created_at) === hoje).length;
@@ -454,6 +502,20 @@ function DashboardView({ data, setTab, onSelectDay }) {
                 <p className="text-sm text-amber-300">{produtosBaixoEstoque.length} produto(s) com estoque baixo</p>
               </div>
               <p className="text-xs text-[var(--text-secondary)]">{produtosBaixoEstoque.map((p) => p.name).join(", ")}</p>
+            </button>
+          )}
+        </div>
+
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 md:col-span-2">
+          <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-3">Cobranças "a faturar" vencidas</p>
+          {vencidas.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">Nenhuma cobrança vencida 👍</p>
+          ) : (
+            <button onClick={() => setTab("financeiro")} className="w-full text-left">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={15} className="text-rose-400 shrink-0" />
+                <p className="text-sm text-rose-300">{vencidas.length} cobrança(s) vencida(s) — {money(totalVencido)} em atraso</p>
+              </div>
             </button>
           )}
         </div>
@@ -860,6 +922,198 @@ function ConfirmarEntregaModal({ data, refetch, close, order, setModal, companyN
   );
 }
 
+function SegurancaModal({ close }) {
+  const [factors, setFactors] = useState([]);
+  const [loadingList, setLoadingList] = useState(true);
+  const [enrolling, setEnrolling] = useState(false);
+  const [qr, setQr] = useState(null);
+  const [secret, setSecret] = useState("");
+  const [factorId, setFactorId] = useState(null);
+  const [code, setCode] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const load = async () => {
+    const { data } = await supabase.auth.mfa.listFactors();
+    setFactors(data?.totp || []);
+    setLoadingList(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const iniciarAtivacao = async () => {
+    setError("");
+    const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp" });
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setQr(data.totp.qr_code);
+    setSecret(data.totp.secret);
+    setFactorId(data.id);
+    setEnrolling(true);
+  };
+
+  const confirmarAtivacao = async () => {
+    if (!factorId || code.length < 6) return;
+    setLoading(true);
+    setError("");
+    const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({ factorId });
+    if (challengeError) {
+      setLoading(false);
+      setError(challengeError.message);
+      return;
+    }
+    const { error: verifyError } = await supabase.auth.mfa.verify({ factorId, challengeId: challenge.id, code });
+    setLoading(false);
+    if (verifyError) {
+      setError("Código incorreto. Confira o app autenticador e tente de novo.");
+      return;
+    }
+    setEnrolling(false);
+    setQr(null);
+    setCode("");
+    load();
+  };
+
+  const cancelarAtivacao = async () => {
+    if (factorId) await supabase.auth.mfa.unenroll({ factorId });
+    setEnrolling(false);
+    setQr(null);
+    setCode("");
+    setError("");
+  };
+
+  const remover = async (id) => {
+    const ok = window.confirm("Desativar a verificação em duas etapas? Você vai poder entrar só com a senha de novo.");
+    if (!ok) return;
+    await supabase.auth.mfa.unenroll({ factorId: id });
+    load();
+  };
+
+  const verificado = factors.find((f) => f.status === "verified");
+
+  return (
+    <ModalShell title="Segurança da conta" onClose={close}>
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-[var(--text-secondary)]">
+          A verificação em duas etapas pede um código do seu celular toda vez que você entrar, além da senha — protege sua conta mesmo se alguém descobrir sua senha.
+        </p>
+
+        {loadingList ? (
+          <p className="text-sm text-[var(--text-muted)]">Carregando...</p>
+        ) : verificado ? (
+          <div className="border border-emerald-800 bg-emerald-950 rounded-xl p-3 flex items-center justify-between">
+            <span className="text-sm text-emerald-300 flex items-center gap-1.5"><ShieldCheck size={15} /> Ativada</span>
+            <button onClick={() => remover(verificado.id)} className="text-xs font-medium text-rose-400 hover:text-rose-300">Desativar</button>
+          </div>
+        ) : enrolling ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-xs text-[var(--text-secondary)]">
+              Escaneie este código com o Google Authenticator, Microsoft Authenticator ou app parecido:
+            </p>
+            {qr && <img src={qr} alt="QR code de ativação" className="w-40 h-40 mx-auto bg-white p-2 rounded-lg" />}
+            <p className="text-[11px] text-[var(--text-muted)] text-center break-all">Ou digite manualmente no app: {secret}</p>
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="Código de 6 dígitos"
+              className="input text-center tracking-[0.4em]"
+              maxLength={6}
+              autoFocus
+            />
+            {error && <p className="text-xs text-rose-400">{error}</p>}
+            <button
+              disabled={loading || code.length < 6}
+              onClick={confirmarAtivacao}
+              className="bg-zinc-600 hover:bg-zinc-500 disabled:opacity-60 text-white font-medium text-sm py-3 rounded-xl"
+            >
+              {loading ? "Confirmando..." : "Confirmar e ativar"}
+            </button>
+            <button onClick={cancelarAtivacao} className="text-xs text-[var(--text-secondary)] text-center">Cancelar</button>
+          </div>
+        ) : (
+          <>
+            <button onClick={iniciarAtivacao} className="bg-zinc-600 hover:bg-zinc-500 text-white font-medium text-sm py-3 rounded-xl">
+              Ativar verificação em duas etapas
+            </button>
+            {error && <p className="text-xs text-rose-400">{error}</p>}
+          </>
+        )}
+      </div>
+    </ModalShell>
+  );
+}
+
+function BuscaGlobalModal({ data, close, setModal, setTab }) {
+  const [q, setQ] = useState("");
+  const inputRef = React.useRef(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const termo = q.trim().toLowerCase();
+
+  const resultados = termo.length === 0 ? [] : data.customers
+    .map((c) => {
+      const veiculoBatendo = c.vehicles.find((v) => normalizePlate(v.plate).includes(normalizePlate(termo)) || (v.model || "").toLowerCase().includes(termo));
+      const bateNome = c.name.toLowerCase().includes(termo);
+      const batePhone = onlyDigits(c.phone || "").includes(onlyDigits(termo));
+      if (!bateNome && !batePhone && !veiculoBatendo) return null;
+      return { customer: c, vehicle: veiculoBatendo || c.vehicles[0] };
+    })
+    .filter(Boolean)
+    .slice(0, 20);
+
+  const abrirCliente = (customer) => {
+    setTab("clientes");
+    setModal({ type: "historicoCliente", customer });
+  };
+
+  return (
+    <ModalShell title="Buscar" onClose={close}>
+      <div className="flex flex-col gap-3">
+        <div className="relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
+          <input
+            ref={inputRef}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Nome, telefone ou placa..."
+            className="input pl-9"
+          />
+        </div>
+
+        {termo.length === 0 && <p className="text-xs text-[var(--text-muted)]">Digite pra buscar clientes e veículos por nome, telefone ou placa.</p>}
+        {termo.length > 0 && resultados.length === 0 && <p className="text-sm text-[var(--text-muted)] text-center py-4">Nada encontrado.</p>}
+
+        <div className="flex flex-col gap-2">
+          {resultados.map(({ customer, vehicle }) => (
+            <button
+              key={customer.id}
+              onClick={() => abrirCliente(customer)}
+              className="flex items-center gap-3 border border-[var(--border)] rounded-xl p-3 text-left hover:border-zinc-400"
+            >
+              <Users size={16} className="text-[var(--text-secondary)] shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{customer.name}</p>
+                <p className="text-xs text-[var(--text-muted)] truncate">
+                  {customer.phone ? formatPhone(customer.phone) : "sem telefone"}
+                  {vehicle ? ` · ${vehicle.plate} (${vehicle.model || "—"})` : ""}
+                </p>
+              </div>
+              <ChevronRight size={16} className="text-[var(--text-muted)] shrink-0" />
+            </button>
+          ))}
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
 function HistoricoClienteModal({ data, customer, close, setModal }) {
   const pedidos = data.orders
     .filter((o) => o.customer_id === customer.id && o.status === "entregue")
@@ -981,7 +1235,7 @@ function ServicosView({ data, companyId, refetch, setModal }) {
   );
 }
 
-function FinanceiroView({ data, companyId, refetch, setModal }) {
+function FinanceiroView({ data, companyId, refetch, setModal, overdueDaysThreshold, setOverdueDaysThreshold }) {
   const [range, setRange] = useState("hoje");
   const [expDesc, setExpDesc] = useState("");
   const [expValor, setExpValor] = useState("");
@@ -1010,6 +1264,18 @@ function FinanceiroView({ data, companyId, refetch, setModal }) {
   const totalPendente = filteredOrders.filter((o) => !o.paid).reduce((s, o) => s + o.total, 0);
   const totalDespesas = filteredExpenses.reduce((s, e) => s + Number(e.amount), 0);
   const lucroLiquido = totalPago - totalDespesas;
+
+  const diasDesde = (iso) => Math.floor((Date.now() - new Date(iso).getTime()) / (24 * 3600 * 1000));
+  const vencidas = data.orders
+    .filter((o) => o.status === "entregue" && !o.paid && diasDesde(o.created_at) >= overdueDaysThreshold)
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const totalVencido = vencidas.reduce((s, o) => s + o.total, 0);
+
+  const salvarLimiteVencido = async (value) => {
+    const v = Math.max(1, Number(value) || 1);
+    setOverdueDaysThreshold(v);
+    await db.setOverdueDaysThreshold(companyId, v);
+  };
 
   const alterarFormaPagamento = async (order, method) => {
     await db.setPaymentMethod(order.id, method);
@@ -1041,6 +1307,40 @@ function FinanceiroView({ data, companyId, refetch, setModal }) {
           ))}
         </div>
       </div>
+
+      {vencidas.length > 0 && (
+        <div className="bg-rose-950 border border-rose-800 rounded-xl p-4 mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle size={16} className="text-rose-400 shrink-0" />
+            <p className="text-sm text-rose-300 font-medium">
+              {vencidas.length} cobrança(s) "a faturar" vencida(s) — {money(totalVencido)} em atraso há mais de {overdueDaysThreshold} dia(s)
+            </p>
+          </div>
+          <div className="flex flex-col gap-1.5 mb-2">
+            {vencidas.slice(0, 5).map((o) => {
+              const customer = data.customers.find((c) => c.id === o.customer_id);
+              return (
+                <div key={o.id} className="flex items-center justify-between text-xs text-rose-200">
+                  <span>{customer?.name || "—"} — há {diasDesde(o.created_at)} dia(s)</span>
+                  <span className="font-num font-semibold">{money(o.total)}</span>
+                </div>
+              );
+            })}
+            {vencidas.length > 5 && <p className="text-xs text-rose-400">+ {vencidas.length - 5} outra(s)</p>}
+          </div>
+          <div className="flex items-center gap-2 text-xs text-rose-300">
+            <span>Avisar como vencida a partir de</span>
+            <input
+              defaultValue={overdueDaysThreshold}
+              onBlur={(e) => salvarLimiteVencido(e.target.value)}
+              type="number"
+              min="1"
+              className="w-14 px-2 py-1 rounded-lg border border-rose-800 bg-rose-950 text-rose-200 text-center"
+            />
+            <span>dia(s) sem pagar</span>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
@@ -2095,6 +2395,17 @@ function EquipeView({ companyId }) {
     if (companyId) load();
   }, [companyId, load]);
 
+  const baixarBackup = async () => {
+    const backup = await db.exportCompanyBackup(companyId);
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `backup-lavaja-${todayStr()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const gerarConvite = async () => {
     await db.createInvite(companyId, email.trim());
     setEmail("");
@@ -2216,6 +2527,17 @@ function EquipeView({ companyId }) {
           </div>
         ))}
       </div>
+
+      <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2 px-1 mt-6">Dados da empresa</p>
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <p className="text-sm font-medium">Backup dos dados</p>
+          <p className="text-xs text-[var(--text-secondary)]">Baixa clientes, veículos, pedidos, financeiro e estoque num arquivo só.</p>
+        </div>
+        <button onClick={baixarBackup} className="flex items-center gap-1.5 bg-zinc-600 hover:bg-zinc-500 text-white text-sm font-medium px-4 py-2.5 rounded-lg shrink-0">
+          <Download size={15} /> Baixar backup
+        </button>
+      </div>
     </div>
   );
 }
@@ -2236,7 +2558,7 @@ function ModalShell({ title, onClose, children }) {
   );
 }
 
-function ModalRouter({ modal, setModal, data, companyId, refetch, myUserId, companyName }) {
+function ModalRouter({ modal, setModal, data, companyId, refetch, myUserId, companyName, setTab }) {
   const close = () => setModal(null);
   if (modal.type === "novoCliente") return <NovoClienteModal data={data} companyId={companyId} refetch={refetch} close={close} />;
   if (modal.type === "novoVeiculo") return <NovoVeiculoModal data={data} companyId={companyId} refetch={refetch} close={close} customerId={modal.customerId} />;
@@ -2249,6 +2571,8 @@ function ModalRouter({ modal, setModal, data, companyId, refetch, myUserId, comp
   if (modal.type === "editarPedido") return <EditarPedidoModal data={data} refetch={refetch} close={close} order={modal.order} />;
   if (modal.type === "historicoCliente") return <HistoricoClienteModal data={data} customer={modal.customer} close={close} setModal={setModal} />;
   if (modal.type === "confirmarEntrega") return <ConfirmarEntregaModal data={data} refetch={refetch} close={close} order={modal.order} setModal={setModal} companyName={companyName} />;
+  if (modal.type === "buscaGlobal") return <BuscaGlobalModal data={data} close={close} setModal={setModal} setTab={setTab} />;
+  if (modal.type === "seguranca") return <SegurancaModal close={close} />;
   if (modal.type === "editarCliente") return <EditarClienteModal refetch={refetch} close={close} customer={modal.customer} />;
   if (modal.type === "editarVeiculo") return <EditarVeiculoModal refetch={refetch} close={close} vehicle={modal.vehicle} />;
   if (modal.type === "comprovante") return <ComprovanteModal data={data} close={close} order={modal.order} companyName={companyName} />;
