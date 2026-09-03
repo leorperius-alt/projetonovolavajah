@@ -63,7 +63,7 @@ export default function LavaJaApp({ onLogout }) {
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [myUserId, setMyUserId] = useState(null);
   const [blocked, setBlocked] = useState(false);
-  const [data, setData] = useState({ customers: [], services: [], orders: [], expenses: [], products: [], serviceProducts: [], team: [] });
+  const [data, setData] = useState({ customers: [], services: [], orders: [], expenses: [], products: [], serviceProducts: [], team: [], categoryPrices: [] });
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("fila");
   const [modal, setModal] = useState(null);
@@ -805,7 +805,7 @@ function ClientesView({ data, companyId, refetch, setModal, isOwner, loyaltyThre
                       title="Editar veículo"
                       className="text-xs bg-zinc-700 text-zinc-300 hover:bg-zinc-600 rounded-lg px-2.5 py-1 flex items-center gap-1.5"
                     >
-                      {v.plate} · {v.model} {v.color ? `(${v.color})` : ""}
+                      {v.plate} · {v.model} {v.color ? `(${v.color})` : ""}{v.category && v.category !== "carro" ? ` · ${db.VEHICLE_CATEGORIES.find((c) => c.value === v.category)?.label}` : ""}
                       <Edit2 size={10} className="text-zinc-400" />
                     </button>
                   ))}
@@ -1212,6 +1212,14 @@ function ServicosView({ data, companyId, refetch, setModal }) {
                     }).filter(Boolean).join(", ")}
                   </p>
                 )}
+                {data.categoryPrices.filter((cp) => cp.service_id === s.id).length > 0 && (
+                  <p className="text-xs text-[var(--text-muted)] truncate">
+                    {data.categoryPrices.filter((cp) => cp.service_id === s.id).map((cp) => {
+                      const label = db.VEHICLE_CATEGORIES.find((c) => c.value === cp.category)?.label;
+                      return `${label}: ${money(cp.price)}`;
+                    }).join(" · ")}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-1 font-num text-sm">
                 <span className="text-[var(--text-secondary)]">R$</span>
@@ -1223,6 +1231,13 @@ function ServicosView({ data, companyId, refetch, setModal }) {
                 className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
               >
                 <Package size={15} />
+              </button>
+              <button
+                onClick={() => setModal({ type: "precosPorCategoria", servico: s })}
+                title="Preços por categoria de veículo"
+                className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
+              >
+                <Car size={15} />
               </button>
               <button onClick={() => remove(s.id)} className="text-[var(--text-muted)] hover:text-rose-400 p-1.5 -m-1.5">
                 <Trash2 size={18} />
@@ -1922,6 +1937,60 @@ function VincularProdutosModal({ data, companyId, refetch, close, servico }) {
   );
 }
 
+function PrecosPorCategoriaModal({ data, companyId, refetch, close, servico }) {
+  const outrasCategorias = db.VEHICLE_CATEGORIES.filter((c) => c.value !== "carro");
+  const [saving, setSaving] = useState(null);
+
+  const precoAtual = (categoria) => {
+    const override = data.categoryPrices.find((cp) => cp.service_id === servico.id && cp.category === categoria);
+    return override ? override.price : "";
+  };
+
+  const salvar = async (categoria, value) => {
+    setSaving(categoria);
+    if (value === "" || value === null) {
+      const existente = data.categoryPrices.find((cp) => cp.service_id === servico.id && cp.category === categoria);
+      if (existente) await db.removeCategoryPrice(existente.id);
+    } else {
+      await db.setCategoryPrice(companyId, servico.id, categoria, Number(value) || 0);
+    }
+    refetch();
+    setSaving(null);
+  };
+
+  return (
+    <ModalShell title={`Preços por categoria — ${servico.name}`} onClose={close}>
+      <div className="flex flex-col gap-3">
+        <p className="text-xs text-[var(--text-secondary)]">
+          Deixe em branco pra usar o preço padrão do serviço ({money(servico.price)}) nessa categoria.
+        </p>
+
+        <div className="border border-[var(--border)] rounded-xl p-3 flex items-center justify-between">
+          <span className="text-sm font-medium">Carro (padrão)</span>
+          <span className="font-num text-sm text-[var(--text-secondary)]">{money(servico.price)}</span>
+        </div>
+
+        {outrasCategorias.map((c) => (
+          <div key={c.value} className="border border-[var(--border)] rounded-xl p-3 flex items-center gap-3">
+            <span className="flex-1 text-sm font-medium">{c.label}</span>
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-[var(--text-secondary)]">R$</span>
+              <input
+                defaultValue={precoAtual(c.value)}
+                onBlur={(e) => salvar(c.value, e.target.value)}
+                type="number"
+                placeholder={String(servico.price)}
+                className="w-20 px-2 py-1 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-right focus:outline-none focus:ring-2 focus:ring-zinc-400"
+              />
+            </div>
+            {saving === c.value && <span className="text-[10px] text-[var(--text-muted)]">salvando...</span>}
+          </div>
+        ))}
+      </div>
+    </ModalShell>
+  );
+}
+
 function ComissoesView({ data }) {
   const [start, setStart] = useState(() => {
     const d = new Date();
@@ -2021,9 +2090,13 @@ function EditarPedidoModal({ data, refetch, close, order }) {
 
   const customer = data.customers.find((c) => c.id === order.customer_id);
   const vehicle = customer?.vehicles.find((v) => v.id === order.vehicle_id);
+  const categoriaAtiva = vehicle?.category || "carro";
 
   const total =
-    serviceIds.reduce((s, id) => s + (data.services.find((sv) => sv.id === id)?.price || 0), 0) +
+    serviceIds.reduce((s, id) => {
+      const servico = data.services.find((sv) => sv.id === id);
+      return s + (servico ? db.priceForCategory(servico, categoriaAtiva, data.categoryPrices) : 0);
+    }, 0) +
     extraServices.reduce((s, e) => s + e.price, 0);
 
   const toggleService = (id) => setServiceIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -2090,13 +2163,15 @@ function EditarPedidoModal({ data, refetch, close, order }) {
           </select>
         </Field>
 
-        <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mt-2">Serviços</p>
+        <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mt-2">
+          Serviços {categoriaAtiva !== "carro" && <span className="normal-case font-normal text-[var(--text-muted)]">— preço de {db.VEHICLE_CATEGORIES.find((c) => c.value === categoriaAtiva)?.label.toLowerCase()}</span>}
+        </p>
         <div className="flex flex-col gap-1.5">
           {data.services.map((s) => (
             <label key={s.id} className="flex items-center gap-2 border border-[var(--border)] rounded-lg px-3 py-2 cursor-pointer">
               <input type="checkbox" checked={serviceIds.includes(s.id)} onChange={() => toggleService(s.id)} />
               <span className="flex-1 text-sm">{s.name}</span>
-              <span className="font-num text-sm text-[var(--text-secondary)]">{money(s.price)}</span>
+              <span className="font-num text-sm text-[var(--text-secondary)]">{money(db.priceForCategory(s, categoriaAtiva, data.categoryPrices))}</span>
             </label>
           ))}
         </div>
@@ -2568,6 +2643,7 @@ function ModalRouter({ modal, setModal, data, companyId, refetch, myUserId, comp
   if (modal.type === "movimentoEstoque") return <MovimentoEstoqueModal companyId={companyId} refetch={refetch} close={close} produto={modal.produto} tipo={modal.tipo} />;
   if (modal.type === "historicoEstoque") return <HistoricoEstoqueModal produto={modal.produto} close={close} />;
   if (modal.type === "vincularProdutos") return <VincularProdutosModal data={data} companyId={companyId} refetch={refetch} close={close} servico={modal.servico} />;
+  if (modal.type === "precosPorCategoria") return <PrecosPorCategoriaModal data={data} companyId={companyId} refetch={refetch} close={close} servico={modal.servico} />;
   if (modal.type === "editarPedido") return <EditarPedidoModal data={data} refetch={refetch} close={close} order={modal.order} />;
   if (modal.type === "historicoCliente") return <HistoricoClienteModal data={data} customer={modal.customer} close={close} setModal={setModal} />;
   if (modal.type === "confirmarEntrega") return <ConfirmarEntregaModal data={data} refetch={refetch} close={close} order={modal.order} setModal={setModal} companyName={companyName} />;
@@ -2624,6 +2700,7 @@ function EditarVeiculoModal({ refetch, close, vehicle }) {
   const [plate, setPlate] = useState(vehicle.plate || "");
   const [model, setModel] = useState(vehicle.model || "");
   const [color, setColor] = useState(vehicle.color || "");
+  const [category, setCategory] = useState(vehicle.category || "carro");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -2637,7 +2714,7 @@ function EditarVeiculoModal({ refetch, close, vehicle }) {
     setError("");
     setSaving(true);
     try {
-      await db.updateVehicle(vehicle.id, { plate: normalizePlate(plate), model: model.trim(), color: color.trim() });
+      await db.updateVehicle(vehicle.id, { plate: normalizePlate(plate), model: model.trim(), color: color.trim(), category });
       refetch();
       close();
     } catch (e) {
@@ -2660,6 +2737,11 @@ function EditarVeiculoModal({ refetch, close, vehicle }) {
     <ModalShell title="Editar veículo" onClose={close}>
       <div className="flex flex-col gap-3">
         <Field label="Placa"><input value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="ABC1234" className="input" /></Field>
+        <Field label="Categoria">
+          <select value={category} onChange={(e) => setCategory(e.target.value)} className="input">
+            {db.VEHICLE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+        </Field>
         <Field label="Modelo"><input value={model} onChange={(e) => setModel(e.target.value)} className="input" /></Field>
         <Field label="Cor"><input value={color} onChange={(e) => setColor(e.target.value)} className="input" /></Field>
         {error && <p className="text-xs text-rose-400">{error}</p>}
@@ -2678,6 +2760,7 @@ function NovoClienteModal({ data, companyId, refetch, close }) {
   const [plate, setPlate] = useState("");
   const [model, setModel] = useState("");
   const [color, setColor] = useState("");
+  const [category, setCategory] = useState("carro");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -2698,7 +2781,7 @@ function NovoClienteModal({ data, companyId, refetch, close }) {
       await db.createCustomer(companyId, {
         name: name.trim(),
         phone: onlyDigits(phone),
-        vehicle: plate.trim() ? { plate: normalizePlate(plate), model: model.trim(), color: color.trim() } : null,
+        vehicle: plate.trim() ? { plate: normalizePlate(plate), model: model.trim(), color: color.trim(), category } : null,
       });
       refetch();
       close();
@@ -2717,6 +2800,11 @@ function NovoClienteModal({ data, companyId, refetch, close }) {
         <Field label="Telefone"><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(51) 99999-8888" className="input" /></Field>
         <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mt-2">Veículo (opcional)</p>
         <Field label="Placa"><input value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="ABC1234" className="input" /></Field>
+        <Field label="Categoria">
+          <select value={category} onChange={(e) => setCategory(e.target.value)} className="input">
+            {db.VEHICLE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+        </Field>
         <Field label="Modelo"><input value={model} onChange={(e) => setModel(e.target.value)} className="input" /></Field>
         <Field label="Cor"><input value={color} onChange={(e) => setColor(e.target.value)} className="input" /></Field>
         {error && <p className="text-xs text-rose-400">{error}</p>}
@@ -2732,6 +2820,7 @@ function NovoVeiculoModal({ companyId, refetch, close, customerId }) {
   const [plate, setPlate] = useState("");
   const [model, setModel] = useState("");
   const [color, setColor] = useState("");
+  const [category, setCategory] = useState("carro");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -2745,7 +2834,7 @@ function NovoVeiculoModal({ companyId, refetch, close, customerId }) {
     setError("");
     setSaving(true);
     try {
-      await db.createVehicle(companyId, customerId, { plate: normalizePlate(plate), model: model.trim(), color: color.trim() });
+      await db.createVehicle(companyId, customerId, { plate: normalizePlate(plate), model: model.trim(), color: color.trim(), category });
       refetch();
       close();
     } catch (e) {
@@ -2760,6 +2849,11 @@ function NovoVeiculoModal({ companyId, refetch, close, customerId }) {
     <ModalShell title="Novo veículo" onClose={close}>
       <div className="flex flex-col gap-3">
         <Field label="Placa"><input value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="ABC1234" className="input" /></Field>
+        <Field label="Categoria">
+          <select value={category} onChange={(e) => setCategory(e.target.value)} className="input">
+            {db.VEHICLE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+        </Field>
         <Field label="Modelo"><input value={model} onChange={(e) => setModel(e.target.value)} className="input" /></Field>
         <Field label="Cor"><input value={color} onChange={(e) => setColor(e.target.value)} className="input" /></Field>
         {error && <p className="text-xs text-rose-400">{error}</p>}
@@ -2782,6 +2876,7 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
   const [newPlate, setNewPlate] = useState("");
   const [newModel, setNewModel] = useState("");
   const [newColor, setNewColor] = useState("");
+  const [newCategory, setNewCategory] = useState("carro");
   const [date, setDate] = useState(todayStr());
   const [time, setTime] = useState("09:00");
   const [extraServices, setExtraServices] = useState([]);
@@ -2794,8 +2889,13 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
   const [error, setError] = useState("");
 
   const customer = data.customers.find((c) => c.id === customerId);
+  const vehicleSelecionado = customer?.vehicles.find((v) => v.id === vehicleId);
+  const categoriaAtiva = newCustomerMode ? newCategory : vehicleSelecionado?.category || "carro";
   const total =
-    serviceIds.reduce((s, id) => s + (data.services.find((sv) => sv.id === id)?.price || 0), 0) +
+    serviceIds.reduce((s, id) => {
+      const servico = data.services.find((sv) => sv.id === id);
+      return s + (servico ? db.priceForCategory(servico, categoriaAtiva, data.categoryPrices) : 0);
+    }, 0) +
     extraServices.reduce((s, e) => s + e.price, 0);
 
   const toggleService = (id) => setServiceIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -2846,7 +2946,7 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
         const created = await db.createCustomer(companyId, {
           name: newName.trim(),
           phone: onlyDigits(newPhone),
-          vehicle: { plate: normalizePlate(newPlate), model: newModel.trim(), color: newColor.trim() },
+          vehicle: { plate: normalizePlate(newPlate), model: newModel.trim(), color: newColor.trim(), category: newCategory },
         });
         // recarrega para pegar o veículo criado junto
         const fresh = await db.fetchAll(companyId);
@@ -2911,7 +3011,7 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
               <Field label="Veículo">
                 <select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)} className="input">
                   <option value="">Selecione</option>
-                  {customer.vehicles.map((v) => <option key={v.id} value={v.id}>{v.plate} · {v.model}</option>)}
+                  {customer.vehicles.map((v) => <option key={v.id} value={v.id}>{v.plate} · {v.model} · {db.VEHICLE_CATEGORIES.find((c) => c.value === v.category)?.label || "Carro"}</option>)}
                 </select>
               </Field>
             )}
@@ -2927,7 +3027,14 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
               <Field label="Placa"><input value={newPlate} onChange={(e) => setNewPlate(e.target.value)} className="input" /></Field>
               <Field label="Modelo"><input value={newModel} onChange={(e) => setNewModel(e.target.value)} className="input" /></Field>
             </div>
-            <Field label="Cor"><input value={newColor} onChange={(e) => setNewColor(e.target.value)} className="input" /></Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Cor"><input value={newColor} onChange={(e) => setNewColor(e.target.value)} className="input" /></Field>
+              <Field label="Categoria">
+                <select value={newCategory} onChange={(e) => setNewCategory(e.target.value)} className="input">
+                  {db.VEHICLE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+              </Field>
+            </div>
           </>
         )}
 
@@ -2947,13 +3054,15 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
           </select>
         </Field>
 
-        <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mt-2">Serviços</p>
+        <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mt-2">
+          Serviços {categoriaAtiva !== "carro" && <span className="normal-case font-normal text-[var(--text-muted)]">— preço de {db.VEHICLE_CATEGORIES.find((c) => c.value === categoriaAtiva)?.label.toLowerCase()}</span>}
+        </p>
         <div className="flex flex-col gap-1.5">
           {data.services.map((s) => (
             <label key={s.id} className="flex items-center gap-2 border border-[var(--border)] rounded-lg px-3 py-2 cursor-pointer">
               <input type="checkbox" checked={serviceIds.includes(s.id)} onChange={() => toggleService(s.id)} />
               <span className="flex-1 text-sm">{s.name}</span>
-              <span className="font-num text-sm text-[var(--text-secondary)]">{money(s.price)}</span>
+              <span className="font-num text-sm text-[var(--text-secondary)]">{money(db.priceForCategory(s, categoriaAtiva, data.categoryPrices))}</span>
             </label>
           ))}
         </div>
