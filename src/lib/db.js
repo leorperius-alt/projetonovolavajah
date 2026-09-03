@@ -33,7 +33,7 @@ export function subscribeToMyProfile(userId, onChange) {
 }
 
 export async function fetchAll(companyId) {
-  const [customersRes, vehiclesRes, servicesRes, ordersRes, expensesRes, productsRes, serviceProductsRes, teamRes] = await Promise.all([
+  const [customersRes, vehiclesRes, servicesRes, ordersRes, expensesRes, productsRes, serviceProductsRes, teamRes, categoryPricesRes] = await Promise.all([
     supabase.from("customers").select("*").eq("company_id", companyId).order("name"),
     supabase.from("vehicles").select("*").eq("company_id", companyId),
     supabase.from("services").select("*").eq("company_id", companyId).order("name"),
@@ -42,6 +42,7 @@ export async function fetchAll(companyId) {
     supabase.from("products").select("*").eq("company_id", companyId).order("name"),
     supabase.from("service_products").select("*").eq("company_id", companyId),
     supabase.from("profiles").select("id, full_name, role, commission_rate, blocked").eq("company_id", companyId).order("full_name"),
+    supabase.from("service_category_prices").select("*").eq("company_id", companyId),
   ]);
 
   const vehiclesByCustomer = {};
@@ -63,6 +64,7 @@ export async function fetchAll(companyId) {
     products: productsRes.data || [],
     serviceProducts: serviceProductsRes.data || [],
     team: teamRes.data || [],
+    categoryPrices: categoryPricesRes.data || [],
   };
 }
 
@@ -77,6 +79,7 @@ export function subscribeToChanges(companyId, onChange) {
     .on("postgres_changes", { event: "*", schema: "public", table: "products", filter: `company_id=eq.${companyId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "service_products", filter: `company_id=eq.${companyId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "profiles", filter: `company_id=eq.${companyId}` }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "service_category_prices", filter: `company_id=eq.${companyId}` }, onChange)
     .subscribe();
   return () => supabase.removeChannel(channel);
 }
@@ -110,8 +113,8 @@ export async function updateCustomer(id, { name, phone }) {
   if (error) throw error;
 }
 
-export async function updateVehicle(id, { plate, model, color }) {
-  const { error } = await supabase.from("vehicles").update({ plate, model, color }).eq("id", id);
+export async function updateVehicle(id, { plate, model, color, category }) {
+  const { error } = await supabase.from("vehicles").update({ plate, model, color, category }).eq("id", id);
   if (error) throw error;
 }
 
@@ -158,6 +161,32 @@ export const PAYMENT_METHODS = [
   { value: "cartao_debito", label: "Cartão de débito" },
   { value: "a_faturar", label: "A faturar" },
 ];
+
+export const VEHICLE_CATEGORIES = [
+  { value: "carro", label: "Carro" },
+  { value: "moto", label: "Moto" },
+  { value: "suv_caminhonete", label: "SUV/Caminhonete" },
+];
+
+export function priceForCategory(service, category, categoryPrices) {
+  if (category && category !== "carro") {
+    const override = (categoryPrices || []).find((cp) => cp.service_id === service.id && cp.category === category);
+    if (override) return Number(override.price);
+  }
+  return Number(service.price);
+}
+
+export async function setCategoryPrice(companyId, serviceId, category, price) {
+  const { error } = await supabase
+    .from("service_category_prices")
+    .upsert({ company_id: companyId, service_id: serviceId, category, price }, { onConflict: "service_id,category" });
+  if (error) throw error;
+}
+
+export async function removeCategoryPrice(id) {
+  const { error } = await supabase.from("service_category_prices").delete().eq("id", id);
+  if (error) throw error;
+}
 
 export async function finalizeDelivery(id, paymentMethod) {
   const paid = paymentMethod !== "a_faturar";
