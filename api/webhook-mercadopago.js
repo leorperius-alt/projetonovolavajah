@@ -3,7 +3,7 @@
 // Configure essa URL completa no painel do Mercado Pago (Webhooks).
 
 import { createClient } from "@supabase/supabase-js";
-
+ 
 const supabaseAdmin = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
