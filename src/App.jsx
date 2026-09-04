@@ -49,7 +49,7 @@ export default function App() {
       setCheckingMfa(false);
     })();
   }, [session]);
-
+ 
   // Verifica o status da assinatura da empresa assim que o usuário loga
   useEffect(() => {
     (async () => {
