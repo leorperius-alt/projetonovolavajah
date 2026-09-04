@@ -442,3 +442,51 @@ export async function exportCompanyBackup(companyId) {
     equipe: teamRes.data || [],
   };
 }
+
+
+// ============================================================
+// ADICIONE ESTE BLOCO AO FINAL DO SEU src/lib/db.js EXISTENTE
+// (não substitua o arquivo, só cole isso no fim)
+// ============================================================
+
+export async function getMySubscription() {
+  const { data, error } = await supabase.rpc("my_subscription_status");
+  if (error) return null;
+  return data?.[0] || null;
+}
+
+export async function criarLinkAssinatura() {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  if (!token) throw new Error("Sessão não encontrada");
+
+  const resp = await fetch("/api/criar-assinatura", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.erro || "Erro ao criar assinatura");
+  return data.init_point;
+}
+
+// Admin de plataforma: ver assinatura de todas as empresas
+export async function fetchAllSubscriptions() {
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .select("company_id, status, trial_fim, proxima_cobranca");
+  if (error) throw error;
+  return data || [];
+}
+
+// Admin de plataforma: liberar/ajustar manualmente (ex: cortesia)
+export async function adminSetSubscriptionStatus(companyId, status) {
+  const { error } = await supabase.rpc("admin_set_subscription_status", {
+    p_company_id: companyId,
+    p_status: status,
+  });
+  if (error) throw error;
+}
