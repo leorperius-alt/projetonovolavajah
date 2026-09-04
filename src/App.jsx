@@ -1,3 +1,6 @@
+import { useState, useEffect } from "react"; // já deve existir
+import SubscriptionGate from "./SubscriptionGate.jsx";
+import * as db from "./lib/db";
 import React, { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import Auth from "./Auth.jsx";
@@ -14,6 +17,14 @@ export default function App() {
   const [needsMfa, setNeedsMfa] = useState(false);
   const [checkingMfa, setCheckingMfa] = useState(true);
 
+  const [subscription, setSubscription] = useState(undefined); // undefined = carregando
+
+useEffect(() => {
+  if (session?.user) {
+    db.getMySubscription().then(setSubscription);
+  }
+}, [session]);
+  
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
@@ -85,6 +96,10 @@ export default function App() {
   if (needsMfa) {
     return <MfaChallenge onVerified={() => setNeedsMfa(false)} onLogout={() => supabase.auth.signOut()} />;
   }
+const statusBloqueado = ["expirada", "atrasada", "cancelada"].includes(subscription?.status);
 
+if (session?.user && subscription !== undefined && statusBloqueado) {
+  return <SubscriptionGate status={subscription.status} onLogout={() => supabase.auth.signOut()} />;
+}
   return <LavaJaApp onLogout={() => supabase.auth.signOut()} />;
 }
