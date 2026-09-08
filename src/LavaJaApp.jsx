@@ -3154,3 +3154,90 @@ function Field({ label, children }) {
     </div>
   );
 }
+
+// AssinaturaView — cole este componente em algum lugar do LavaJaApp.jsx,
+// por exemplo logo ANTES da função AdminView (procure por "function AdminView()").
+
+function AssinaturaView() {
+  const [subscription, setSubscription] = React.useState(undefined);
+  const [loading, setLoading] = React.useState(false);
+  const [erro, setErro] = React.useState("");
+
+  React.useEffect(() => {
+    db.getMySubscription().then(setSubscription);
+  }, []);
+
+  const assinar = async () => {
+    setLoading(true);
+    setErro("");
+    try {
+      const link = await db.criarLinkAssinatura();
+      window.location.href = link;
+    } catch (e) {
+      setErro(e.message || "Não foi possível gerar o link de pagamento");
+      setLoading(false);
+    }
+  };
+
+  if (subscription === undefined) {
+    return <div className="p-6 text-zinc-400">Carregando...</div>;
+  }
+
+  const statusLabel = {
+    trial: "Período de teste",
+    ativa: "Assinatura ativa",
+    atrasada: "Pagamento atrasado",
+    cancelada: "Assinatura cancelada",
+    expirada: "Teste expirado",
+  };
+
+  const statusCor = {
+    trial: "text-amber-400",
+    ativa: "text-emerald-400",
+    atrasada: "text-orange-400",
+    cancelada: "text-rose-400",
+    expirada: "text-rose-400",
+  };
+
+  const diasRestantesTrial = subscription?.trial_fim
+    ? Math.max(0, Math.ceil((new Date(subscription.trial_fim) - new Date()) / (1000 * 60 * 60 * 24)))
+    : null;
+
+  return (
+    <div className="p-4 md:p-6 max-w-lg">
+      <h2 className="text-lg font-semibold text-zinc-100 mb-4">Assinatura</h2>
+
+      <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-5 mb-4">
+        <p className={`font-medium mb-1 ${statusCor[subscription?.status] || "text-zinc-300"}`}>
+          {statusLabel[subscription?.status] || "Status desconhecido"}
+        </p>
+
+        {subscription?.status === "trial" && diasRestantesTrial !== null && (
+          <p className="text-sm text-zinc-400">
+            {diasRestantesTrial > 0
+              ? `${diasRestantesTrial} dia(s) restante(s) no seu teste gratuito.`
+              : "Seu teste gratuito termina hoje."}
+          </p>
+        )}
+
+        {subscription?.status === "ativa" && subscription?.proxima_cobranca && (
+          <p className="text-sm text-zinc-400">
+            Próxima cobrança em {new Date(subscription.proxima_cobranca).toLocaleDateString("pt-BR")}.
+          </p>
+        )}
+      </div>
+
+      {subscription?.status !== "ativa" && (
+        <button
+          onClick={assinar}
+          disabled={loading}
+          className="bg-amber-600 hover:bg-amber-500 disabled:opacity-60 text-white font-medium px-5 py-2.5 rounded-lg"
+        >
+          {loading ? "Gerando link..." : "Assinar agora"}
+        </button>
+      )}
+
+      {erro && <p className="text-sm text-rose-400 mt-2">{erro}</p>}
+    </div>
+  );
+}
