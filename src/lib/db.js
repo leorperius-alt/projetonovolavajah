@@ -33,7 +33,7 @@ export function subscribeToMyProfile(userId, onChange) {
 }
 
 export async function fetchAll(companyId) {
-  const [customersRes, vehiclesRes, servicesRes, ordersRes, expensesRes, productsRes, serviceProductsRes, teamRes, categoryPricesRes] = await Promise.all([
+  const [customersRes, vehiclesRes, servicesRes, ordersRes, expensesRes, productsRes, serviceProductsRes, teamRes, categoryPricesRes, inspectionsRes] = await Promise.all([
     supabase.from("customers").select("*").eq("company_id", companyId).order("name"),
     supabase.from("vehicles").select("*").eq("company_id", companyId),
     supabase.from("services").select("*").eq("company_id", companyId).order("name"),
@@ -43,6 +43,7 @@ export async function fetchAll(companyId) {
     supabase.from("service_products").select("*").eq("company_id", companyId),
     supabase.from("profiles").select("id, full_name, role, commission_rate, blocked").eq("company_id", companyId).order("full_name"),
     supabase.from("service_category_prices").select("*").eq("company_id", companyId),
+    supabase.from("vehicle_inspections").select("*").eq("company_id", companyId).order("created_at", { ascending: false }),
   ]);
 
   const vehiclesByCustomer = {};
@@ -65,6 +66,7 @@ export async function fetchAll(companyId) {
     serviceProducts: serviceProductsRes.data || [],
     team: teamRes.data || [],
     categoryPrices: categoryPricesRes.data || [],
+    vehicleInspections: inspectionsRes.data || [],
   };
 }
 
@@ -80,6 +82,7 @@ export function subscribeToChanges(companyId, onChange) {
     .on("postgres_changes", { event: "*", schema: "public", table: "service_products", filter: `company_id=eq.${companyId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "profiles", filter: `company_id=eq.${companyId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "service_category_prices", filter: `company_id=eq.${companyId}` }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "vehicle_inspections", filter: `company_id=eq.${companyId}` }, onChange)
     .subscribe();
   return () => supabase.removeChannel(channel);
 }
@@ -199,6 +202,42 @@ export async function setPaymentMethod(id, paymentMethod) {
   const { error } = await supabase.from("orders").update({ payment_method: paymentMethod, paid }).eq("id", id);
   if (error) throw error;
 }
+
+// ---- Vistoria de veículo (checklist de avarias) ----
+export async function uploadInspectionPhoto(companyId, orderId, file) {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${companyId}/${orderId || "sem-pedido"}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await supabase.storage.from("vistorias").upload(path, file, { contentType: file.type || "image/jpeg" });
+  if (error) throw error;
+  const { data } = supabase.storage.from("vistorias").getPublicUrl(path);
+  return data.publicUrl;
+}
+
+export async function saveVehicleInspection(companyId, { orderId, vehicleId, userId, status, marks, observations, photoUrls }) {
+  const { data, error } = await supabase
+    .from("vehicle_inspections")
+    .insert({
+      company_id: companyId,
+      order_id: orderId || null,
+      vehicle_id: vehicleId || null,
+      created_by: userId || null,
+      status: status || "realizada",
+      marks: marks || [],
+      observations: observations || null,
+      photo_urls: photoUrls || [],
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export const INSPECTION_MARK_TYPES = [
+  { value: "arranhao", label: "Arranhão", color: "#f59e0b" },
+  { value: "amassado", label: "Amassado", color: "#f97316" },
+  { value: "quebrado", label: "Quebrado/trincado", color: "#e11d48" },
+  { value: "outro", label: "Outro", color: "#a855f7" },
+];
 
 // ---- Equipe e convites ----
 export async function fetchTeam(companyId) {
