@@ -5,11 +5,13 @@ import {
   TrendingDown, FileBarChart, Download, ChevronRight, ShieldOff, ShieldCheck, UserX,
   Package, ArrowDownCircle, ArrowUpCircle, History, AlertTriangle, MessageCircle, Percent,
   Edit2, XCircle, LayoutDashboard, ArrowUp, ArrowDown, Minus, CreditCard, FileText, Crown,
+  ClipboardList,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./lib/db";
 import { reportError } from "./sentry.js";
 import ThemeToggle from "./ThemeToggle.jsx";
+import { VistoriaModal, VistoriaViewModal } from "./VistoriaModal.jsx";
 
 const genLocalId = () => Math.random().toString(36).slice(2, 9);
 const money = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -272,7 +274,7 @@ export default function LavaJaApp({ onLogout }) {
             }}
           />
         )}
-        {activeTab === "fila" && <FilaView data={data} companyId={companyId} companyName={companyName} refetch={refetch} setModal={setModal} />}
+        {activeTab === "fila" && <FilaView data={data} companyId={companyId} myUserId={myUserId} companyName={companyName} refetch={refetch} setModal={setModal} />}
         {activeTab === "agenda" && <AgendaView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "clientes" && (
           <ClientesView
@@ -526,12 +528,14 @@ function DashboardView({ data, setTab, onSelectDay, overdueDaysThreshold }) {
   );
 }
 
-function FilaView({ data, companyName, refetch, setModal }) {
+function FilaView({ data, companyId, myUserId, companyName, refetch, setModal }) {
   const active = data.orders.filter((o) => ["aguardando", "lavando", "pronto"].includes(o.status));
   const advance = async (order, status) => {
     await db.updateOrderStatus(order.id, status);
     refetch();
   };
+  const iniciarVistoria = (order) => setModal({ type: "vistoria", order });
+  const verVistoria = (order) => setModal({ type: "verVistoria", order });
   const cancelar = async (order) => {
     const ok = window.confirm("Cancelar esse pedido? Se o estoque já tiver sido usado, ele volta automaticamente.");
     if (!ok) return;
@@ -587,13 +591,33 @@ function FilaView({ data, companyName, refetch, setModal }) {
                         </div>
                       </div>
                       <OrderServicesLine data={data} order={order} />
+                      {(() => {
+                        const inspection = data.vehicleInspections?.find((v) => v.order_id === order.id);
+                        if (!inspection) return null;
+                        const temAvaria = inspection.status === "realizada" && (inspection.marks || []).length > 0;
+                        return (
+                          <button
+                            onClick={() => verVistoria(order)}
+                            className={`mt-2 w-full flex items-center gap-1.5 text-xs font-medium rounded-lg px-2 py-1.5 ${
+                              inspection.status === "pulada"
+                                ? "bg-[var(--bg)] text-[var(--text-muted)]"
+                                : temAvaria
+                                ? "bg-amber-500/10 text-amber-500"
+                                : "bg-emerald-500/10 text-emerald-500"
+                            }`}
+                          >
+                            <ClipboardList size={13} />
+                            {inspection.status === "pulada" ? "Vistoria pulada" : temAvaria ? `Vistoria: ${(inspection.marks || []).length} avaria(s)` : "Vistoria: sem avarias"}
+                          </button>
+                        );
+                      })()}
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-xs text-[var(--text-secondary)]">há {timeAgo(order.created_at)}</span>
                         <span className="font-num text-sm font-semibold text-[var(--text)]">{money(order.total)}</span>
                       </div>
                       <div className="mt-2 flex flex-col gap-1.5">
                         {col.key === "aguardando" && (
-                          <button onClick={() => advance(order, "lavando")} className="w-full flex items-center justify-center gap-2 text-sm font-medium bg-sky-600 hover:bg-sky-700 text-white rounded-lg py-3">
+                          <button onClick={() => iniciarVistoria(order)} className="w-full flex items-center justify-center gap-2 text-sm font-medium bg-sky-600 hover:bg-sky-700 text-white rounded-lg py-3">
                             <PlayCircle size={14} /> Iniciar lavagem
                           </button>
                         )}
@@ -2654,6 +2678,8 @@ function ModalRouter({ modal, setModal, data, companyId, refetch, myUserId, comp
   if (modal.type === "editarCliente") return <EditarClienteModal refetch={refetch} close={close} customer={modal.customer} />;
   if (modal.type === "editarVeiculo") return <EditarVeiculoModal refetch={refetch} close={close} vehicle={modal.vehicle} />;
   if (modal.type === "comprovante") return <ComprovanteModal data={data} close={close} order={modal.order} companyName={companyName} />;
+  if (modal.type === "vistoria") return <VistoriaModal data={data} companyId={companyId} myUserId={myUserId} order={modal.order} refetch={refetch} close={close} />;
+  if (modal.type === "verVistoria") return <VistoriaViewModal data={data} order={modal.order} close={close} />;
   return null;
 }
 
