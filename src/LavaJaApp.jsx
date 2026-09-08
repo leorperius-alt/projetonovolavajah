@@ -181,6 +181,7 @@ export default function LavaJaApp({ onLogout }) {
     { id: "relatorios", label: "Relatórios", icon: FileBarChart, ownerOnly: true },
     { id: "comissoes", label: "Comissões", icon: Percent, ownerOnly: true },
     { id: "equipe", label: "Equipe", icon: UserPlus, ownerOnly: true },
+    { id: "assinatura", label: "Assinatura", icon: CreditCard, ownerOnly: true },
     { id: "admin", label: "Admin", icon: Crown, platformAdminOnly: true },
   ];
   const NAV = FULL_NAV.filter((n) => {
@@ -301,6 +302,7 @@ export default function LavaJaApp({ onLogout }) {
         )}
         {activeTab === "comissoes" && isOwner && <ComissoesView data={data} />}
         {activeTab === "equipe" && isOwner && <EquipeView companyId={companyId} />}
+        {activeTab === "assinatura" && isOwner && <AssinaturaView />}
         {activeTab === "admin" && isPlatformAdmin && <AdminView />}
       </div>
 
