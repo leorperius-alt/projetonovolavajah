@@ -108,7 +108,7 @@ export default function Auth() {
           )}
         </div>
         <p className="text-xs text-[var(--text-secondary)] text-center mt-4">
-          Ainda não tem conta? Peça um link de acesso pra quem administra o LavaJá.
+          Ainda não tem conta? Peça um link de acesso pra quem administra o Detalha Pro.
         </p>
       </div>
       <style>{`
