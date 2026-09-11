@@ -1,13 +1,13 @@
 {
-  "name": "LavaJá — Gestão de Lava-rápido",
-  "short_name": "LavaJá",
-  "description": "O app de gestão que facilita o dia a dia do seu lava-rápido",
+   "name": "Detalha Pro — Gestão para Estética Automotiva",
+  "short_name": "Detalha Pro",
+  "description": "O app de gestão para quem leva a estética automotiva a sério",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#09090b",
-  "theme_color": "#09090b",
+  "background_color": "#2e3138",
+  "theme_color": "#2e3138",
   "lang": "pt-BR",
   "icons": [
     { "src": "/icon-72.png", "sizes": "72x72", "type": "image/png", "purpose": "any" },
