@@ -58,7 +58,7 @@ export default async function handler(req, res) {
         Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
       },
       body: JSON.stringify({
-        reason: "Assinatura LavaJá",
+        reason: "Assinatura Detalha Pro",
         external_reference: profile.company_id,
         payer_email: userData.user.email,
         back_url: `${process.env.APP_URL}/`,
