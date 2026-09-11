@@ -14,7 +14,7 @@ export default function ThemeToggle({ variant = "auto", className = "" }) {
     const next = !isDark;
     setIsDark(next);
     document.documentElement.classList.toggle("dark", next);
-    localStorage.setItem("lavaja-theme", next ? "dark" : "light");
+    localStorage.setItem("detalhapro-theme", next ? "dark" : "light");
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", next ? "#18181b" : "#ffffff");
   };
