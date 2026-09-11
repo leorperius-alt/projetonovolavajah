@@ -100,7 +100,7 @@ export default function Auth() {
               <button
                 disabled={loading}
                 onClick={handleLogin}
-                className="mt-2 bg-zinc-500 hover:bg-zinc-400 disabled:opacity-60 text-white font-medium text-sm py-3 rounded-xl"
+                     className="mt-2 bg-[#2e3138] hover:bg-[#3a3d45] disabled:opacity-60 text-[#f3ede0] font-medium text-sm py-3 rounded-xl"
               >
                 {loading ? "Aguarde..." : "Entrar"}
               </button>
