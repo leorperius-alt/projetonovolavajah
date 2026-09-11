@@ -244,9 +244,9 @@ export default function LavaJaApp({ onLogout }) {
         </div>
       </div>
 
-      <div className="md:hidden flex items-center gap-2 px-4 py-3 bg-zinc-800 text-zinc-100">
-        <img src="/logo.png" alt="LavaJá" className="w-7 h-7 rounded-lg" />
-        <span className="font-display font-semibold">LavaJá</span>
+      <div className="md:hidden flex items-center gap-2 px-4 py-3 bg-[#2e3138] text-zinc-100">
+        <img src="/logo.png" alt="Detalha Pro" className="w-7 h-7 rounded-lg" />
+        <span className="font-display font-semibold">Detalha <span className="text-[#d4af6a]">Pro</span></span>
         <span className="text-xs text-zinc-400/70 truncate flex-1 text-right">{companyName}</span>
         {companyId && (
           <button onClick={() => setModal({ type: "buscaGlobal" })} className="text-zinc-400/80 p-1.5 -m-1.5">
@@ -2335,7 +2335,7 @@ function AdminView() {
         <Crown size={20} className="text-amber-400" />
         <h1 className="font-display text-xl font-semibold">Administração da plataforma</h1>
       </div>
-      <p className="text-sm text-[var(--text-secondary)] mb-5">{companies.length} empresa(s) cadastrada(s) no LavaJá</p>
+      <p className="text-sm text-[var(--text-secondary)] mb-5">{companies.length} empresa(s) cadastrada(s) no Detalha Pro</p>
 
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-5">
         <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2">Criar nova empresa</p>
@@ -2502,7 +2502,7 @@ function EquipeView({ companyId }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `backup-lavaja-${todayStr()}.json`;
+    a.download = `backup-detalhapro-${todayStr()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
