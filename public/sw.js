@@ -1,4 +1,4 @@
-const CACHE_NAME = "lavaja-v1";
+const CACHE_NAME = "detalhapro-v1";
 const ASSETS_TO_CACHE = ["/", "/manifest.json", "/logo.png"];
 
 self.addEventListener("install", (event) => {
