@@ -34,7 +34,7 @@ export default function SubscriptionGate({ status, onLogout }) {
         </div>
         <h1 className="text-lg font-semibold text-zinc-100 mb-1">Assinatura necessária</h1>
         <p className="text-sm text-zinc-400 mb-5">
-          {mensagens[status] || "Sua assinatura precisa ser regularizada para continuar usando o LavaJá."}
+        {mensagens[status] || "Sua assinatura precisa ser regularizada para continuar usando o Detalha Pro."}
         </p>
 
         <button
