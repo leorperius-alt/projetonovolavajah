@@ -224,8 +224,8 @@ export default function LavaJaApp({ onLogout }) {
             <button
               key={n.id}
               onClick={() => setTab(n.id)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
-                activeTab === n.id ? "bg-zinc-600 text-white" : "text-zinc-300/80 hover:bg-zinc-600/50"
+                           className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
+                activeTab === n.id ? "bg-[#d4af6a] text-[#2e3138]" : "text-zinc-300/80 hover:bg-zinc-600/50"
               }`}
             >
               <n.icon size={18} />
