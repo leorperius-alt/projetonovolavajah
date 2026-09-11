@@ -42,7 +42,7 @@ export default function MfaChallenge({ onVerified, onLogout }) {
       </div>
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center mb-8">
-          <img src="/logo.png" alt="LavaJá" className="w-32 h-32 rounded-2xl shadow-sm" />
+          <img src="/logo.png" alt="Detalha Pro" className="w-32 h-32 rounded-2xl shadow-sm" />
         </div>
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6">
           <p className="text-sm text-[var(--text-secondary)] mb-4">Digite o código de 6 dígitos do seu aplicativo autenticador.</p>
