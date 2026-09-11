@@ -15,20 +15,24 @@
     <!-- Instalação no iPhone/iPad (Safari não lê o manifest.json pra isso) -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="LavaJá" />
+    <meta name="apple-mobile-web-app-title" content="Detalha Pro" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-      :root {
+            :root {
         --bg: #fafafa;
         --surface: #ffffff;
         --border: #e4e4e7;
         --text: #18181b;
         --text-secondary: #52525b;
         --text-muted: #71717a;
+        --brand-graphite: #2e3138;
+        --brand-graphite-hover: #3a3d45;
+        --brand-gold: #b8873c;
+        --brand-gold-soft: #f3ede0;
         color-scheme: light;
       }
       html.dark {
@@ -38,13 +42,17 @@
         --text: #f4f4f5;
         --text-secondary: #a1a1aa;
         --text-muted: #71717a;
+        --brand-graphite: #f3f0ea;
+        --brand-graphite-hover: #e5e1d6;
+        --brand-gold: #d4af6a;
+        --brand-gold-soft: #3a3226;
         color-scheme: dark;
       }
       html, body { background-color: var(--bg); }
     </style>
     <script>
       (function () {
-        var saved = localStorage.getItem("lavaja-theme");
+        var saved = localStorage.getItem("detalhapro-theme");
         if (saved === "dark") {
           document.documentElement.classList.add("dark");
           document.querySelector('meta[name="theme-color"]').setAttribute("content", "#18181b");
