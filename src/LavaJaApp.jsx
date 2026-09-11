@@ -203,10 +203,10 @@ export default function LavaJaApp({ onLogout }) {
         .input:focus { box-shadow: 0 0 0 2px var(--text-muted); border-color: var(--text-muted); }
       `}</style>
 
-      <div className="hidden md:flex md:flex-col w-56 shrink-0 bg-zinc-800 text-zinc-100 p-4 overflow-y-auto">
+          <div className="hidden md:flex md:flex-col w-56 shrink-0 bg-[#2e3138] text-zinc-100 p-4 overflow-y-auto">
         <div className="flex items-center gap-2 mb-1 px-2">
-          <img src="/logo.png" alt="LavaJá" className="w-8 h-8 rounded-lg" />
-          <span className="font-display font-semibold text-lg">LavaJá</span>
+          <img src="/logo.png" alt="Detalha Pro" className="w-8 h-8 rounded-lg" />
+          <span className="font-display font-semibold text-lg">Detalha <span className="text-[#d4af6a]">Pro</span></span>
         </div>
         <p className="px-2 text-xs text-zinc-400/70 mb-3 truncate">{companyName}</p>
         {companyId && (
