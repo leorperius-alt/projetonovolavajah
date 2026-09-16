@@ -204,13 +204,36 @@ export async function setPaymentMethod(id, paymentMethod) {
 }
 
 // ---- Vistoria de veículo (checklist de avarias) ----
+// O bucket "vistorias" é privado (RLS de storage restringe leitura à própria
+// empresa) — por isso guardamos o CAMINHO do arquivo, não uma URL pública.
+// Para exibir a foto, gere uma URL assinada com getInspectionPhotoSignedUrls().
 export async function uploadInspectionPhoto(companyId, orderId, file) {
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
   const path = `${companyId}/${orderId || "sem-pedido"}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const { error } = await supabase.storage.from("vistorias").upload(path, file, { contentType: file.type || "image/jpeg" });
   if (error) throw error;
-  const { data } = supabase.storage.from("vistorias").getPublicUrl(path);
-  return data.publicUrl;
+  return path;
+}
+
+// Converte uma URL pública antiga (fotos salvas antes do bucket virar
+// privado) ou um caminho já "cru" no caminho puro dentro do bucket.
+function extractVistoriaPath(urlOrPath) {
+  if (!urlOrPath) return null;
+  const marker = "/vistorias/";
+  const idx = urlOrPath.indexOf(marker);
+  return idx !== -1 ? urlOrPath.slice(idx + marker.length) : urlOrPath;
+}
+
+// Gera URLs assinadas (temporárias, expiram em 1h por padrão) para exibir
+// fotos de vistoria. Funciona tanto com o path novo quanto com URLs públicas
+// antigas gravadas antes dessa mudança — não precisa migrar dado nenhum.
+export async function getInspectionPhotoSignedUrls(urlsOrPaths, expiresInSeconds = 3600) {
+  const paths = (urlsOrPaths || []).map(extractVistoriaPath).filter(Boolean);
+  if (!paths.length) return [];
+  const results = await Promise.all(
+    paths.map((p) => supabase.storage.from("vistorias").createSignedUrl(p, expiresInSeconds))
+  );
+  return results.map((r) => r.data?.signedUrl).filter(Boolean);
 }
 
 export async function saveVehicleInspection(companyId, { orderId, vehicleId, userId, status, marks, observations, photoUrls }) {
