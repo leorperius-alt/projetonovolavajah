@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { X, Camera, Trash2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import * as db from "./lib/db";
 
@@ -264,6 +264,26 @@ export function VistoriaViewModal({ data, order, close }) {
   const customer = data.customers.find((c) => c.id === order.customer_id);
   const vehicle = customer?.vehicles.find((v) => v.id === order.vehicle_id);
 
+  // O bucket de fotos é privado — precisamos gerar URLs assinadas
+  // (temporárias) pra exibir, em vez de usar a URL pública direto.
+  const [signedPhotoUrls, setSignedPhotoUrls] = useState([]);
+  const storedPhotos = inspection?.photo_urls || [];
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!storedPhotos.length) {
+      setSignedPhotoUrls([]);
+      return;
+    }
+    db.getInspectionPhotoSignedUrls(storedPhotos).then((urls) => {
+      if (!cancelled) setSignedPhotoUrls(urls);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(storedPhotos)]);
+
   if (!inspection) {
     return (
       <VistoriaShell title="Vistoria" onClose={close}>
@@ -284,7 +304,6 @@ export function VistoriaViewModal({ data, order, close }) {
   }
 
   const marks = inspection.marks || [];
-  const photos = inspection.photo_urls || [];
 
   return (
     <VistoriaShell title={`Vistoria — ${vehicle?.plate || "veículo"}`} onClose={close}>
@@ -315,15 +334,19 @@ export function VistoriaViewModal({ data, order, close }) {
           </div>
         )}
 
-        {photos.length > 0 && (
+        {storedPhotos.length > 0 && (
           <div>
             <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2">Fotos</p>
             <div className="flex flex-wrap gap-2">
-              {photos.map((url, i) => (
-                <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="w-20 h-20 rounded-lg overflow-hidden border border-[var(--border)] block">
-                  <img src={url} alt="" className="w-full h-full object-cover" />
-                </a>
-              ))}
+              {signedPhotoUrls.length === 0 ? (
+                <p className="text-xs text-[var(--text-secondary)]">Carregando fotos…</p>
+              ) : (
+                signedPhotoUrls.map((url, i) => (
+                  <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="w-20 h-20 rounded-lg overflow-hidden border border-[var(--border)] block">
+                    <img src={url} alt="" className="w-full h-full object-cover" />
+                  </a>
+                ))
+              )}
             </div>
           </div>
         )}
