@@ -1163,12 +1163,19 @@ function HistoricoClienteModal({ data, customer, close, setModal }) {
       {pedidos.length === 0 && <p className="text-sm text-[var(--text-muted)] text-center py-6">Nenhuma lavagem concluída ainda.</p>}
 
       <div className="flex flex-col gap-2">
-        {pedidos.map((o) => (
+        {pedidos.map((o) => {
+          const inspection = data.vehicleInspections?.find((v) => v.order_id === o.id);
+          return (
           <div key={o.id} className="border border-[var(--border)] rounded-xl p-3">
             <div className="flex items-center justify-between gap-2">
               <OrderServicesLine data={data} order={o} />
               <div className="flex items-center gap-2 shrink-0">
                 <span className="font-num text-sm font-semibold text-[var(--text)]">{money(o.total)}</span>
+                {inspection && (
+                  <button onClick={() => setModal({ type: "verVistoria", order: o })} title="Ver vistoria" className="text-[var(--text-muted)] hover:text-[var(--text)] p-1.5 -m-1.5">
+                    <ClipboardList size={16} />
+                  </button>
+                )}
                 <button onClick={() => setModal({ type: "comprovante", order: o })} title="Ver/imprimir comprovante" className="text-[var(--text-muted)] hover:text-[var(--text)] p-1.5 -m-1.5">
                   <FileText size={16} />
                 </button>
@@ -1181,7 +1188,8 @@ function HistoricoClienteModal({ data, customer, close, setModal }) {
               </span>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </ModalShell>
   );
