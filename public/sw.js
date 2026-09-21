@@ -1,4 +1,4 @@
-const CACHE_NAME = "detalhapro-v1";
+const CACHE_NAME = "detalhapro-v2";
 const ASSETS_TO_CACHE = ["/", "/manifest.json", "/logo.png"];
 
 self.addEventListener("install", (event) => {
@@ -24,18 +24,18 @@ self.addEventListener("fetch", (event) => {
   if (request.url.includes("supabase.co")) return;
   if (request.method !== "GET") return;
 
+  // Rede primeiro: sempre busca a versão mais nova quando há conexão.
+  // O cache só entra como fallback quando o usuário está offline —
+  // assim um deploy novo aparece na hora, sem depender de o cache expirar.
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const network = fetch(request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          }
-          return response;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
+    fetch(request)
+      .then((response) => {
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      })
+      .catch(() => caches.match(request))
   );
 });
