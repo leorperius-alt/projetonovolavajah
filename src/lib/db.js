@@ -160,6 +160,7 @@ export async function togglePaid(id, paid) {
 
 export const PAYMENT_METHODS = [
   { value: "dinheiro", label: "Dinheiro" },
+  { value: "pix", label: "Pix" },
   { value: "cartao_credito", label: "Cartão de crédito" },
   { value: "cartao_debito", label: "Cartão de débito" },
   { value: "a_faturar", label: "A faturar" },
