@@ -879,6 +879,7 @@ function ConfirmarEntregaModal({ data, refetch, close, order, setModal, companyN
 
   const icons = {
     dinheiro: Banknote,
+    pix: QrCode,
     cartao_credito: CreditCard,
     cartao_debito: CreditCard,
     a_faturar: FileText,
@@ -928,6 +929,7 @@ function ConfirmarEntregaModal({ data, refetch, close, order, setModal, companyN
         <p className="text-sm text-[var(--text-secondary)]">{customer?.name} · total <span className="font-num font-semibold text-[var(--text)]">{money(order.total)}</span></p>
         <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mt-1">Como o cliente pagou?</p>
         <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {db.PAYMENT_METHODS.map((m) => {
             const Icon = icons[m.value];
             return (
