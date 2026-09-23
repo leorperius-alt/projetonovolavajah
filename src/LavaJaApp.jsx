@@ -617,9 +617,14 @@ function FilaView({ data, companyId, myUserId, companyName, refetch, setModal })
                       </div>
                       <div className="mt-2 flex flex-col gap-1.5">
                         {col.key === "aguardando" && (
-                          <button onClick={() => iniciarVistoria(order)} className="w-full flex items-center justify-center gap-2 text-sm font-medium bg-sky-600 hover:bg-sky-700 text-white rounded-lg py-3">
-                            <PlayCircle size={14} /> Iniciar lavagem
-                          </button>
+                          <>
+                            <button onClick={() => setModal({ type: "orcamento", order })} className="w-full flex items-center justify-center gap-2 text-sm font-medium bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] hover:bg-[var(--surface)] rounded-lg py-3">
+                              <FileText size={14} /> Orçamento
+                            </button>
+                            <button onClick={() => iniciarVistoria(order)} className="w-full flex items-center justify-center gap-2 text-sm font-medium bg-sky-600 hover:bg-sky-700 text-white rounded-lg py-3">
+                              <PlayCircle size={14} /> Iniciar lavagem
+                            </button>
+                          </>
                         )}
                         {col.key === "lavando" && (
                           <button onClick={() => advance(order, "pronto")} className="w-full flex items-center justify-center gap-2 text-sm font-medium bg-zinc-500 hover:bg-zinc-600 text-white rounded-lg py-3">
@@ -2497,6 +2502,86 @@ function ComprovanteModal({ data, close, order, companyName }) {
   );
 }
 
+function OrcamentoModal({ data, close, order, companyName }) {
+  const customer = data.customers.find((c) => c.id === order.customer_id);
+  const vehicle = customer?.vehicles.find((v) => v.id === order.vehicle_id);
+
+  const servicos = [
+    ...(order.service_ids || [])
+      .map((id) => data.services.find((s) => s.id === id))
+      .filter(Boolean)
+      .map((s) => ({ name: s.name, price: s.price })),
+    ...(order.extra_services || []).map((e) => ({ name: e.name, price: e.price })),
+  ];
+
+  const mensagem =
+    `Olá${customer?.name ? ", " + customer.name.split(" ")[0] : ""}! Segue o orçamento do seu veículo${vehicle?.plate ? ` (${vehicle.plate})` : ""} na ${companyName || "lavagem"}:\n` +
+    servicos.map((s) => `• ${s.name}: ${money(s.price)}`).join("\n") +
+    `\n\nTotal: ${money(order.total)}\n\nQualquer dúvida, é só chamar! 🚗✨`;
+  const link = waLink(customer?.phone, mensagem);
+
+  return (
+    <ModalShell title="Orçamento" onClose={close}>
+      <div id="orcamento-print" className="bg-white text-black rounded-xl p-5" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="text-center mb-3">
+          <img src="/logo.png" alt="" className="w-14 h-14 mx-auto mb-1 rounded-lg" />
+          <p className="font-bold text-base">{companyName}</p>
+          <p className="text-xs text-gray-500">Orçamento</p>
+        </div>
+
+        <div className="text-xs border-t border-b border-gray-200 py-2 my-2 flex flex-col gap-1">
+          <div className="flex justify-between"><span className="text-gray-500">Data</span><span className="font-medium">{dateTimeStr(order.created_at)}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Cliente</span><span className="font-medium">{customer?.name || "—"}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Veículo</span><span className="font-medium">{vehicle?.plate || "—"} · {vehicle?.model || ""}</span></div>
+        </div>
+
+        <div className="text-xs flex flex-col gap-1.5 my-3">
+          {servicos.length === 0 && <p className="text-gray-400">Nenhum serviço registrado</p>}
+          {servicos.map((s, i) => (
+            <div key={i} className="flex justify-between">
+              <span>{s.name}</span>
+              <span className="font-medium">{money(s.price)}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-between font-bold text-sm border-t border-gray-200 pt-2 mt-2">
+          <span>Total</span>
+          <span>{money(order.total)}</span>
+        </div>
+
+        <p className="text-center text-xs text-gray-400 mt-5">Orçamento sujeito a alteração após avaliação do veículo. 🚗✨</p>
+      </div>
+
+      <div className="flex flex-col gap-2 mt-4">
+        {link ? (
+          <a
+            href={link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white font-medium text-sm py-3 rounded-xl"
+          >
+            <MessageCircle size={16} /> Enviar no WhatsApp
+          </a>
+        ) : (
+          <p className="text-[11px] text-[var(--text-muted)] text-center">Cliente sem telefone cadastrado</p>
+        )}
+        <button onClick={() => window.print()} className="w-full flex items-center justify-center gap-2 bg-zinc-600 hover:bg-zinc-500 text-white font-medium text-sm py-3 rounded-xl">
+          <FileText size={16} /> Imprimir / Salvar PDF
+        </button>
+      </div>
+
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #orcamento-print, #orcamento-print * { visibility: visible; }
+          #orcamento-print { position: fixed; top: 0; left: 0; width: 100%; }
+        }
+      `}</style>
+    </ModalShell>
+  );
+}
+
 function EquipeView({ companyId }) {
   const [team, setTeam] = useState([]);
   const [invites, setInvites] = useState([]);
@@ -2697,6 +2782,7 @@ function ModalRouter({ modal, setModal, data, companyId, refetch, myUserId, comp
   if (modal.type === "editarCliente") return <EditarClienteModal refetch={refetch} close={close} customer={modal.customer} />;
   if (modal.type === "editarVeiculo") return <EditarVeiculoModal refetch={refetch} close={close} vehicle={modal.vehicle} />;
   if (modal.type === "comprovante") return <ComprovanteModal data={data} close={close} order={modal.order} companyName={companyName} />;
+  if (modal.type === "orcamento") return <OrcamentoModal data={data} close={close} order={modal.order} companyName={companyName} />;
   if (modal.type === "vistoria") return <VistoriaModal data={data} companyId={companyId} myUserId={myUserId} order={modal.order} refetch={refetch} close={close} />;
   if (modal.type === "verVistoria") return <VistoriaViewModal data={data} order={modal.order} close={close} />;
   return null;
