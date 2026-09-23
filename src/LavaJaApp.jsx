@@ -1332,6 +1332,13 @@ function FinanceiroView({ data, companyId, refetch, setModal, overdueDaysThresho
     refetch();
   };
 
+  const excluirPedido = async (order) => {
+    const ok = window.confirm("Excluir este lançamento? Ele sai do financeiro e, se o estoque já tinha sido baixado, é estornado automaticamente. Essa ação não pode ser desfeita.");
+    if (!ok) return;
+    await db.cancelOrder(order, data.serviceProducts);
+    refetch();
+  };
+
   const addExpense = async () => {
     if (!expDesc.trim() || !expValor) return;
     await db.createExpense(companyId, { description: expDesc.trim(), amount: Number(expValor), expense_date: expData });
@@ -1439,6 +1446,9 @@ function FinanceiroView({ data, companyId, refetch, setModal, overdueDaysThresho
                 <option key={m.value} value={m.value}>{m.label}</option>
               ))}
             </select>
+            <button onClick={() => excluirPedido(order)} title="Excluir lançamento" className="text-[var(--text-muted)] hover:text-rose-400 p-1.5 -m-1.5">
+              <Trash2 size={17} />
+            </button>
           </div>
         ))}
       </div>
