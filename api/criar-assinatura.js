@@ -3,11 +3,23 @@
 // Chamada pelo frontend quando o dono clica em "Assinar agora".
 
 import { createClient } from "@supabase/supabase-js";
- 
+
 const supabaseAdmin = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+async function mpFetch(path, options) {
+  const resp = await fetch(`https://api.mercadopago.com${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
+      ...(options?.headers || {}),
+    },
+  });
+  return { ok: resp.ok, data: await resp.json() };
+}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -41,7 +53,7 @@ export default async function handler(req, res) {
   // 3) Busca a assinatura atual da empresa
   const { data: subscription, error: subError } = await supabaseAdmin
     .from("subscriptions")
-    .select("id, plan_price")
+    .select("id, plan_price, status, gateway_subscription_id")
     .eq("company_id", profile.company_id)
     .single();
 
@@ -49,14 +61,35 @@ export default async function handler(req, res) {
     return res.status(404).json({ erro: "Assinatura não encontrada para essa empresa" });
   }
 
-  // 4) Cria a assinatura recorrente no Mercado Pago
+  // Já está paga e em dia: não há o que criar. Evita recriar do zero por clique
+  // repetido e evita "reabrir" cobrança de quem já é assinante.
+  if (subscription.status === "ativa") {
+    return res.status(409).json({ erro: "Você já tem uma assinatura ativa" });
+  }
+
   try {
-    const mpResponse = await fetch("https://api.mercadopago.com/preapproval", {
+    // 4) Se já existe uma tentativa em aberto no Mercado Pago, reaproveita em vez de
+    // criar outra. Isso é o que evita o problema de cliques repetidos: antes, cada
+    // clique em "Assinar agora" criava um novo preapproval no MP, sobrescrevia
+    // gateway_subscription_id, e um pagamento feito no link antigo deixava de ser
+    // encontrado pelo webhook.
+    if (subscription.gateway_subscription_id) {
+      const existente = await mpFetch(`/preapproval/${subscription.gateway_subscription_id}`);
+
+      if (existente.ok && existente.data.status === "pending" && existente.data.init_point) {
+        return res.status(200).json({ init_point: existente.data.init_point });
+      }
+      // status "authorized" não deveria cair aqui (já teria virado "ativa" acima),
+      // mas por segurança, se o webhook ainda não processou, não deixa duplicar.
+      if (existente.ok && existente.data.status === "authorized") {
+        return res.status(409).json({ erro: "Assinatura já autorizada, aguarde a confirmação" });
+      }
+      // "cancelled"/"rejected"/erro 404: a tentativa antiga está morta, segue para criar uma nova.
+    }
+
+    // 5) Cria a assinatura recorrente no Mercado Pago
+    const { ok, data: mpData } = await mpFetch("/preapproval", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
-      },
       body: JSON.stringify({
         reason: "Assinatura Detalha Pro",
         external_reference: profile.company_id,
@@ -72,9 +105,7 @@ export default async function handler(req, res) {
       }),
     });
 
-    const mpData = await mpResponse.json();
-
-    if (!mpResponse.ok) {
+    if (!ok) {
       console.error("Erro Mercado Pago:", mpData);
       return res.status(502).json({ erro: "Falha ao criar assinatura no Mercado Pago" });
     }
