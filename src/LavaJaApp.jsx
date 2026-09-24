@@ -3291,12 +3291,48 @@ function Field({ label, children }) {
 
 function AssinaturaView() {
   const [subscription, setSubscription] = React.useState(undefined);
+  const [faturas, setFaturas] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
+  const [cancelando, setCancelando] = React.useState(false);
   const [erro, setErro] = React.useState("");
 
-  React.useEffect(() => {
-    db.getMySubscription().then(setSubscription);
+  // Voltou do checkout do Mercado Pago (?assinatura=processando na URL).
+  // Enquanto isso, o webhook ainda não confirmou o pagamento — então
+  // avisa o dono e fica checando o status a cada poucos segundos, em
+  // vez de deixar a tela parada mostrando "Período de teste".
+  const [processandoCheckout] = React.useState(
+    () => new URLSearchParams(window.location.search).get("assinatura") === "processando"
+  );
+
+  const carregar = React.useCallback(() => {
+    return Promise.all([db.getMySubscription(), db.getMinhasFaturas()]).then(([sub, pagamentos]) => {
+      setSubscription(sub);
+      setFaturas(pagamentos);
+      return sub;
+    });
   }, []);
+
+  React.useEffect(() => {
+    carregar();
+  }, [carregar]);
+
+  // Enquanto estiver no estado "processando" e a assinatura ainda não
+  // tiver virado "ativa", consulta de novo a cada 4s (até 2 minutos).
+  React.useEffect(() => {
+    if (!processandoCheckout) return;
+    if (subscription?.status === "ativa") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("assinatura");
+      window.history.replaceState({}, "", url);
+      return;
+    }
+    const intervalo = setInterval(carregar, 4000);
+    const limite = setTimeout(() => clearInterval(intervalo), 120000);
+    return () => {
+      clearInterval(intervalo);
+      clearTimeout(limite);
+    };
+  }, [processandoCheckout, subscription?.status, carregar]);
 
   const assinar = async () => {
     setLoading(true);
@@ -3307,6 +3343,23 @@ function AssinaturaView() {
     } catch (e) {
       setErro(e.message || "Não foi possível gerar o link de pagamento");
       setLoading(false);
+    }
+  };
+
+  const cancelar = async () => {
+    const ok = window.confirm(
+      "Cancelar sua assinatura? Você continua com acesso até o fim do período já pago, mas a renovação automática para."
+    );
+    if (!ok) return;
+    setCancelando(true);
+    setErro("");
+    try {
+      await db.cancelarAssinatura();
+      await carregar();
+    } catch (e) {
+      setErro(e.message || "Não foi possível cancelar a assinatura");
+    } finally {
+      setCancelando(false);
     }
   };
 
@@ -3330,18 +3383,40 @@ function AssinaturaView() {
     expirada: "text-rose-400",
   };
 
+  const faturaStatusLabel = {
+    approved: "Aprovado",
+    pending: "Pendente",
+    in_process: "Em análise",
+    rejected: "Recusado",
+    refunded: "Estornado",
+  };
+
   const diasRestantesTrial = subscription?.trial_fim
     ? Math.max(0, Math.ceil((new Date(subscription.trial_fim) - new Date()) / (1000 * 60 * 60 * 24)))
     : null;
+
+  const mostraProcessando = processandoCheckout && subscription?.status !== "ativa";
+  const podeCancelar = subscription?.status === "ativa" || subscription?.status === "atrasada";
 
   return (
     <div className="p-4 md:p-6 max-w-lg">
       <h2 className="text-lg font-semibold text-zinc-100 mb-4">Assinatura</h2>
 
+      {mostraProcessando && (
+        <div className="bg-amber-950/40 border border-amber-800 rounded-xl p-4 mb-4 text-sm text-amber-300">
+          Confirmando seu pagamento com o Mercado Pago... isso costuma levar só alguns
+          segundos. Esta página atualiza sozinha.
+        </div>
+      )}
+
       <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-5 mb-4">
         <p className={`font-medium mb-1 ${statusCor[subscription?.status] || "text-zinc-300"}`}>
           {statusLabel[subscription?.status] || "Status desconhecido"}
         </p>
+
+        {subscription?.plan_price != null && (
+          <p className="text-sm text-zinc-400 mb-1">Plano: {money(subscription.plan_price)}/mês</p>
+        )}
 
         {subscription?.status === "trial" && diasRestantesTrial !== null && (
           <p className="text-sm text-zinc-400">
@@ -3356,19 +3431,64 @@ function AssinaturaView() {
             Próxima cobrança em {new Date(subscription.proxima_cobranca).toLocaleDateString("pt-BR")}.
           </p>
         )}
+
+        {subscription?.status === "atrasada" && (
+          <p className="text-sm text-orange-300">
+            A última cobrança não foi aprovada. Atualize o pagamento pra manter o acesso.
+          </p>
+        )}
       </div>
 
-      {subscription?.status !== "ativa" && (
-        <button
-          onClick={assinar}
-          disabled={loading}
-          className="bg-amber-600 hover:bg-amber-500 disabled:opacity-60 text-white font-medium px-5 py-2.5 rounded-lg"
-        >
-          {loading ? "Gerando link..." : "Assinar agora"}
-        </button>
-      )}
+      <div className="flex flex-wrap gap-3 mb-6">
+        {subscription?.status !== "ativa" && (
+          <button
+            onClick={assinar}
+            disabled={loading}
+            className="bg-amber-600 hover:bg-amber-500 disabled:opacity-60 text-white font-medium px-5 py-2.5 rounded-lg"
+          >
+            {loading ? "Gerando link..." : subscription?.status === "atrasada" ? "Atualizar pagamento" : "Assinar agora"}
+          </button>
+        )}
 
-      {erro && <p className="text-sm text-rose-400 mt-2">{erro}</p>}
+        {podeCancelar && (
+          <button
+            onClick={cancelar}
+            disabled={cancelando}
+            className="bg-transparent hover:bg-zinc-800 disabled:opacity-60 text-zinc-400 hover:text-rose-400 font-medium px-5 py-2.5 rounded-lg border border-zinc-700"
+          >
+            {cancelando ? "Cancelando..." : "Cancelar assinatura"}
+          </button>
+        )}
+      </div>
+
+      {erro && <p className="text-sm text-rose-400 mb-6">{erro}</p>}
+
+      {faturas.length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium text-zinc-300 mb-2">Histórico de pagamentos</h3>
+          <div className="bg-zinc-800 border border-zinc-700 rounded-xl divide-y divide-zinc-700">
+            {faturas.map((f) => (
+              <div key={f.gateway_payment_id} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                <span className="text-zinc-400">
+                  {f.created_at ? new Date(f.created_at).toLocaleDateString("pt-BR") : "—"}
+                </span>
+                <span className="text-zinc-200">{money(f.valor)}</span>
+                <span
+                  className={
+                    f.status === "approved"
+                      ? "text-emerald-400"
+                      : f.status === "rejected"
+                      ? "text-rose-400"
+                      : "text-amber-400"
+                  }
+                >
+                  {faturaStatusLabel[f.status] || f.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
