@@ -160,7 +160,6 @@ export async function togglePaid(id, paid) {
 
 export const PAYMENT_METHODS = [
   { value: "dinheiro", label: "Dinheiro" },
-  { value: "pix", label: "Pix" },
   { value: "cartao_credito", label: "Cartão de crédito" },
   { value: "cartao_debito", label: "Cartão de débito" },
   { value: "a_faturar", label: "A faturar" },
@@ -534,6 +533,30 @@ export async function criarLinkAssinatura() {
   const data = await resp.json();
   if (!resp.ok) throw new Error(data.erro || "Erro ao criar assinatura");
   return data.init_point;
+}
+
+export async function cancelarAssinatura() {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  if (!token) throw new Error("Sessão não encontrada");
+
+  const resp = await fetch("/api/cancelar-assinatura", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.erro || "Erro ao cancelar assinatura");
+  return true;
+}
+
+export async function getMinhasFaturas() {
+  const { data, error } = await supabase.rpc("my_subscription_payments");
+  if (error) return [];
+  return data || [];
 }
 
 // Admin de plataforma: ver assinatura de todas as empresas
