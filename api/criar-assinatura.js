@@ -94,7 +94,7 @@ export default async function handler(req, res) {
         reason: "Assinatura Detalha Pro",
         external_reference: profile.company_id,
         payer_email: userData.user.email,
-        back_url: `${process.env.APP_URL}/`,
+        back_url: `${process.env.APP_URL}/?assinatura=processando`,
         auto_recurring: {
           frequency: 1,
           frequency_type: "months",
