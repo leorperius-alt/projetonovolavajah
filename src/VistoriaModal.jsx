@@ -23,7 +23,11 @@ function VistoriaShell({ title, onClose, children }) {
 
 // Diagrama do carro (visão de cima), simples e genérico.
 // onDiagramClick recebe {x, y} em porcentagem (0-100) relativa ao desenho.
-function CarDiagram({ marks, onDiagramClick, readOnly }) {
+// stroke/fill/labelColor têm default pro tema do app (usado no modal de
+// vistoria), mas podem ser sobrescritos — usado no comprovante impresso,
+// que é sempre preto no branco e não pode depender do tema (claro/escuro)
+// que estiver ativo no momento.
+export function CarDiagram({ marks, onDiagramClick, readOnly, stroke = "var(--border)", fill = "var(--bg)", labelColor = "var(--text-muted)" }) {
   const svgRef = useRef(null);
 
   const handleClick = (e) => {
@@ -34,12 +38,9 @@ function CarDiagram({ marks, onDiagramClick, readOnly }) {
     onDiagramClick({ x, y });
   };
 
-  const stroke = "var(--border)";
-  const fill = "var(--bg)";
-
   return (
     <div className="relative w-full max-w-[220px] mx-auto select-none">
-      <p className="text-center text-[10px] text-[var(--text-muted)] mb-1">FRENTE</p>
+      <p className="text-center text-[10px] mb-1" style={{ color: labelColor }}>FRENTE</p>
       <svg
         ref={svgRef}
         viewBox="0 0 240 440"
@@ -80,7 +81,7 @@ function CarDiagram({ marks, onDiagramClick, readOnly }) {
           );
         })}
       </svg>
-      <p className="text-center text-[10px] text-[var(--text-muted)] mt-1">TRÁS</p>
+      <p className="text-center text-[10px] mt-1" style={{ color: labelColor }}>TRÁS</p>
     </div>
   );
 }
