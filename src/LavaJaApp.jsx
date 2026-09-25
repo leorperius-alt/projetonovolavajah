@@ -11,7 +11,7 @@ import { supabase } from "./supabaseClient";
 import * as db from "./lib/db";
 import { reportError } from "./sentry.js";
 import ThemeToggle from "./ThemeToggle.jsx";
-import { VistoriaModal, VistoriaViewModal } from "./VistoriaModal.jsx";
+import { VistoriaModal, VistoriaViewModal, CarDiagram } from "./VistoriaModal.jsx";
 
 const genLocalId = () => Math.random().toString(36).slice(2, 9);
 const money = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -2430,6 +2430,11 @@ function ComprovanteModal({ data, close, order, companyName }) {
 
   const metodoLabel = db.PAYMENT_METHODS.find((m) => m.value === order.payment_method)?.label || "Não informado";
 
+  // Vistoria de entrada: só entra no comprovante quando foi de fato realizada
+  // (se foi pulada, não há nada pra provar, então a seção nem aparece).
+  const inspection = data.vehicleInspections?.find((v) => v.order_id === order.id);
+  const inspectionMarks = inspection?.marks || [];
+
   return (
     <ModalShell title="Comprovante" onClose={close}>
       <div id="comprovante-print" className="bg-white text-black rounded-xl p-5" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -2467,6 +2472,39 @@ function ComprovanteModal({ data, close, order, companyName }) {
           <span>Status</span>
           <span>{order.paid ? "Pago" : "Pendente"}</span>
         </div>
+
+        {inspection && inspection.status === "realizada" && (
+          <div className="text-xs border-t border-gray-200 pt-2 mt-2">
+            <p className="font-semibold text-gray-600 mb-1.5">Vistoria de entrada</p>
+
+            <div className="w-20 mx-auto mb-1.5">
+              <CarDiagram marks={inspectionMarks} readOnly stroke="#9ca3af" fill="#ffffff" labelColor="#9ca3af" />
+            </div>
+
+            {inspectionMarks.length === 0 ? (
+              <p className="text-center text-emerald-600 font-medium">
+                Nenhuma avaria identificada — veículo entrou sem danos aparentes.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-1 justify-center">
+                {db.INSPECTION_MARK_TYPES.map((t) => {
+                  const count = inspectionMarks.filter((m) => m.tipo === t.value).length;
+                  if (!count) return null;
+                  return (
+                    <span key={t.value} className="flex items-center gap-1 px-1.5 py-0.5 rounded border border-gray-200 text-gray-600">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: t.color }} />
+                      {count}x {t.label}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+
+            {inspection.observations && (
+              <p className="text-gray-500 mt-1.5 italic text-center">"{inspection.observations}"</p>
+            )}
+          </div>
+        )}
 
         <p className="text-center text-xs text-gray-400 mt-5">Obrigado pela preferência! 🚗✨</p>
       </div>
