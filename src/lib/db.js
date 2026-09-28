@@ -160,6 +160,7 @@ export async function togglePaid(id, paid) {
 
 export const PAYMENT_METHODS = [
   { value: "dinheiro", label: "Dinheiro" },
+  { value: "pix", label: "Pix" },
   { value: "cartao_credito", label: "Cartão de crédito" },
   { value: "cartao_debito", label: "Cartão de débito" },
   { value: "a_faturar", label: "A faturar" },
@@ -179,6 +180,18 @@ export function priceForCategory(service, category, categoryPrices) {
   return Number(service.price);
 }
 
+// Calcula o valor do desconto em R$ a partir do subtotal e do tipo escolhido.
+// type: "percentual" (0–100) ou "valor" (R$ fixo). Nunca deixa o desconto passar do subtotal.
+export function discountAmount(subtotal, type, value) {
+  const base = Number(subtotal) || 0;
+  const v = Number(value) || 0;
+  if (base <= 0 || v <= 0) return 0;
+  if (type === "percentual") {
+    return Math.min(base, (base * Math.min(v, 100)) / 100);
+  }
+  return Math.min(base, v);
+}
+
 export async function setCategoryPrice(companyId, serviceId, category, price) {
   const { error } = await supabase
     .from("service_category_prices")
@@ -191,9 +204,12 @@ export async function removeCategoryPrice(id) {
   if (error) throw error;
 }
 
-export async function finalizeDelivery(id, paymentMethod) {
+export async function finalizeDelivery(id, paymentMethod, adjust = {}) {
   const paid = paymentMethod !== "a_faturar";
-  const { error } = await supabase.from("orders").update({ status: "entregue", payment_method: paymentMethod, paid }).eq("id", id);
+  const { error } = await supabase
+    .from("orders")
+    .update({ status: "entregue", payment_method: paymentMethod, paid, ...adjust })
+    .eq("id", id);
   if (error) throw error;
 }
 
@@ -533,30 +549,6 @@ export async function criarLinkAssinatura() {
   const data = await resp.json();
   if (!resp.ok) throw new Error(data.erro || "Erro ao criar assinatura");
   return data.init_point;
-}
-
-export async function cancelarAssinatura() {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData?.session?.access_token;
-  if (!token) throw new Error("Sessão não encontrada");
-
-  const resp = await fetch("/api/cancelar-assinatura", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  const data = await resp.json();
-  if (!resp.ok) throw new Error(data.erro || "Erro ao cancelar assinatura");
-  return true;
-}
-
-export async function getMinhasFaturas() {
-  const { data, error } = await supabase.rpc("my_subscription_payments");
-  if (error) return [];
-  return data || [];
 }
 
 // Admin de plataforma: ver assinatura de todas as empresas
