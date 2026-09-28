@@ -61,6 +61,7 @@ export default function LavaJaApp({ onLogout }) {
   const [loyaltyThreshold, setLoyaltyThreshold] = useState(10);
   const [overdueDaysThreshold, setOverdueDaysThreshold] = useState(7);
   const [relatoriosInitialDate, setRelatoriosInitialDate] = useState(null);
+  const [finSub, setFinSub] = useState("financeiro");
   const [myRole, setMyRole] = useState(null);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [myUserId, setMyUserId] = useState(null);
@@ -180,7 +181,6 @@ export default function LavaJaApp({ onLogout }) {
     { id: "servicos", label: "Serviços", icon: Wrench },
     { id: "estoque", label: "Estoque", icon: Package },
     { id: "financeiro", label: "Financeiro", icon: Wallet, ownerOnly: true },
-    { id: "relatorios", label: "Relatórios", icon: FileBarChart, ownerOnly: true },
     { id: "comissoes", label: "Comissões", icon: Percent, ownerOnly: true },
     { id: "equipe", label: "Equipe", icon: UserPlus, ownerOnly: true },
     { id: "assinatura", label: "Assinatura", icon: CreditCard, ownerOnly: true },
@@ -266,11 +266,12 @@ export default function LavaJaApp({ onLogout }) {
         {activeTab === "dashboard" && isOwner && (
           <DashboardView
             data={data}
-            setTab={setTab}
+            setTab={(t) => { if (t === "financeiro") setFinSub("financeiro"); setTab(t); }}
             overdueDaysThreshold={overdueDaysThreshold}
             onSelectDay={(iso) => {
               setRelatoriosInitialDate(iso);
-              setTab("relatorios");
+              setFinSub("relatorios");
+              setTab("financeiro");
             }}
           />
         )}
@@ -290,17 +291,29 @@ export default function LavaJaApp({ onLogout }) {
         {activeTab === "servicos" && <ServicosView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "estoque" && <EstoqueView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
         {activeTab === "financeiro" && isOwner && (
-          <FinanceiroView
-            data={data}
-            companyId={companyId}
-            refetch={refetch}
-            setModal={setModal}
-            overdueDaysThreshold={overdueDaysThreshold}
-            setOverdueDaysThreshold={setOverdueDaysThreshold}
-          />
-        )}
-        {activeTab === "relatorios" && isOwner && (
-          <RelatoriosView data={data} initialDate={relatoriosInitialDate} onConsumedInitialDate={() => setRelatoriosInitialDate(null)} setModal={setModal} />
+          <div>
+            <div className="px-4 md:px-6 pt-4 md:pt-6">
+              <div className="inline-flex gap-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-1">
+                {[{ k: "financeiro", l: "Financeiro" }, { k: "relatorios", l: "Relatórios" }].map((o) => (
+                  <button key={o.k} onClick={() => setFinSub(o.k)} className={`text-sm font-medium px-4 py-1.5 rounded-lg ${finSub === o.k ? "bg-[#d4af6a] text-[#2e3138]" : "text-[var(--text-secondary)]"}`}>
+                    {o.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {finSub === "financeiro" ? (
+              <FinanceiroView
+                data={data}
+                companyId={companyId}
+                refetch={refetch}
+                setModal={setModal}
+                overdueDaysThreshold={overdueDaysThreshold}
+                setOverdueDaysThreshold={setOverdueDaysThreshold}
+              />
+            ) : (
+              <RelatoriosView data={data} initialDate={relatoriosInitialDate} onConsumedInitialDate={() => setRelatoriosInitialDate(null)} setModal={setModal} />
+            )}
+          </div>
         )}
         {activeTab === "comissoes" && isOwner && <ComissoesView data={data} />}
         {activeTab === "equipe" && isOwner && <EquipeView companyId={companyId} />}
