@@ -5,13 +5,13 @@ import {
   TrendingDown, FileBarChart, Download, ChevronRight, ShieldOff, ShieldCheck, UserX,
   Package, ArrowDownCircle, ArrowUpCircle, History, AlertTriangle, MessageCircle, Percent,
   Edit2, XCircle, LayoutDashboard, ArrowUp, ArrowDown, Minus, CreditCard, FileText, Crown,
-  ClipboardList,
+  ClipboardList, QrCode,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./lib/db";
 import { reportError } from "./sentry.js";
 import ThemeToggle from "./ThemeToggle.jsx";
-import { VistoriaModal, VistoriaViewModal, CarDiagram } from "./VistoriaModal.jsx";
+import { VistoriaModal, VistoriaViewModal } from "./VistoriaModal.jsx";
 
 const genLocalId = () => Math.random().toString(36).slice(2, 9);
 const money = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -874,11 +874,18 @@ function ConfirmarEntregaModal({ data, refetch, close, order, setModal, companyN
   const [saving, setSaving] = useState(false);
   const [entregue, setEntregue] = useState(false);
   const [metodoEscolhido, setMetodoEscolhido] = useState(null);
+  const [discountType, setDiscountType] = useState(order.discount_type || "percentual");
+  const [discountValue, setDiscountValue] = useState(order.discount_value ? String(order.discount_value) : "");
   const customer = data.customers.find((c) => c.id === order.customer_id);
   const vehicle = customer?.vehicles.find((v) => v.id === order.vehicle_id);
 
+  const subtotal = order.subtotal ?? order.total;
+  const discount = db.discountAmount(subtotal, discountType, discountValue);
+  const totalFinal = Math.max(0, subtotal - discount);
+
   const icons = {
     dinheiro: Banknote,
+    pix: QrCode,
     cartao_credito: CreditCard,
     cartao_debito: CreditCard,
     a_faturar: FileText,
@@ -888,7 +895,12 @@ function ConfirmarEntregaModal({ data, refetch, close, order, setModal, companyN
     if (saving) return;
     setSaving(true);
     try {
-      await db.finalizeDelivery(order.id, method);
+      await db.finalizeDelivery(order.id, method, {
+        subtotal,
+        discount_type: discount > 0 ? discountType : null,
+        discount_value: discount > 0 ? Number(discountValue) || 0 : 0,
+        total: totalFinal,
+      });
       refetch();
       setMetodoEscolhido(method);
       setEntregue(true);
@@ -907,7 +919,16 @@ function ConfirmarEntregaModal({ data, refetch, close, order, setModal, companyN
             onClick={() =>
               setModal({
                 type: "comprovante",
-                order: { ...order, status: "entregue", payment_method: metodoEscolhido, paid: metodoEscolhido !== "a_faturar" },
+                order: {
+                  ...order,
+                  status: "entregue",
+                  payment_method: metodoEscolhido,
+                  paid: metodoEscolhido !== "a_faturar",
+                  subtotal,
+                  discount_type: discount > 0 ? discountType : null,
+                  discount_value: discount > 0 ? Number(discountValue) || 0 : 0,
+                  total: totalFinal,
+                },
               })
             }
             className="w-full bg-zinc-600 hover:bg-zinc-500 text-white font-medium text-sm py-3 rounded-xl"
@@ -925,9 +946,37 @@ function ConfirmarEntregaModal({ data, refetch, close, order, setModal, companyN
   return (
     <ModalShell title={`Entregar — ${vehicle?.plate || "veículo"}`} onClose={close}>
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-[var(--text-secondary)]">{customer?.name} · total <span className="font-num font-semibold text-[var(--text)]">{money(order.total)}</span></p>
+        <p className="text-sm text-[var(--text-secondary)]">{customer?.name}</p>
+
+        <DescontoField
+          subtotal={subtotal}
+          discountType={discountType}
+          discountValue={discountValue}
+          onTypeChange={setDiscountType}
+          onValueChange={setDiscountValue}
+        />
+
+        <div className="flex flex-col gap-1 pt-2 border-t border-[var(--border)]">
+          {discount > 0 && (
+            <>
+              <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
+                <span>Subtotal</span>
+                <span className="font-num">{money(subtotal)}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-emerald-400">
+                <span>Desconto</span>
+                <span className="font-num">- {money(discount)}</span>
+              </div>
+            </>
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[var(--text-secondary)]">Total</span>
+            <span className="font-num text-lg font-semibold text-[var(--text)]">{money(totalFinal)}</span>
+          </div>
+        </div>
+
         <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mt-1">Como o cliente pagou?</p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {db.PAYMENT_METHODS.map((m) => {
             const Icon = icons[m.value];
             return (
@@ -2119,6 +2168,8 @@ function EditarPedidoModal({ data, refetch, close, order }) {
   const [pickedProductId, setPickedProductId] = useState("");
   const [pickedQuantity, setPickedQuantity] = useState("1");
   const [attendantId, setAttendantId] = useState(order.attendant_id || "");
+  const [discountType, setDiscountType] = useState(order.discount_type || "percentual");
+  const [discountValue, setDiscountValue] = useState(order.discount_value ? String(order.discount_value) : "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -2126,12 +2177,14 @@ function EditarPedidoModal({ data, refetch, close, order }) {
   const vehicle = customer?.vehicles.find((v) => v.id === order.vehicle_id);
   const categoriaAtiva = vehicle?.category || "carro";
 
-  const total =
+  const subtotal =
     serviceIds.reduce((s, id) => {
       const servico = data.services.find((sv) => sv.id === id);
       return s + (servico ? db.priceForCategory(servico, categoriaAtiva, data.categoryPrices) : 0);
     }, 0) +
     extraServices.reduce((s, e) => s + e.price, 0);
+  const discount = db.discountAmount(subtotal, discountType, discountValue);
+  const total = Math.max(0, subtotal - discount);
 
   const toggleService = (id) => setServiceIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
@@ -2168,6 +2221,9 @@ function EditarPedidoModal({ data, refetch, close, order }) {
           service_ids: serviceIds,
           extra_services: extraServices.map(({ name, price }) => ({ name, price })),
           extra_products: extraProducts.map(({ product_id, name, unit, quantity }) => ({ product_id, name, unit, quantity })),
+          subtotal,
+          discount_type: discount > 0 ? discountType : null,
+          discount_value: discount > 0 ? Number(discountValue) || 0 : 0,
           total,
           attendant_id: attendantId || null,
         },
@@ -2266,9 +2322,31 @@ function EditarPedidoModal({ data, refetch, close, order }) {
           </div>
         )}
 
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border)]">
-          <span className="text-sm text-[var(--text-secondary)]">Total</span>
-          <span className="font-num text-lg font-semibold text-[var(--text)]">{money(total)}</span>
+        <DescontoField
+          subtotal={subtotal}
+          discountType={discountType}
+          discountValue={discountValue}
+          onTypeChange={setDiscountType}
+          onValueChange={setDiscountValue}
+        />
+
+        <div className="flex flex-col gap-1 mt-1 pt-3 border-t border-[var(--border)]">
+          {discount > 0 && (
+            <>
+              <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
+                <span>Subtotal</span>
+                <span className="font-num">{money(subtotal)}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-emerald-400">
+                <span>Desconto</span>
+                <span className="font-num">- {money(discount)}</span>
+              </div>
+            </>
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[var(--text-secondary)]">Total</span>
+            <span className="font-num text-lg font-semibold text-[var(--text)]">{money(total)}</span>
+          </div>
         </div>
 
         {order.status !== "agendado" && (
@@ -2429,11 +2507,8 @@ function ComprovanteModal({ data, close, order, companyName }) {
   ];
 
   const metodoLabel = db.PAYMENT_METHODS.find((m) => m.value === order.payment_method)?.label || "Não informado";
-
-  // Vistoria de entrada: só entra no comprovante quando foi de fato realizada
-  // (se foi pulada, não há nada pra provar, então a seção nem aparece).
-  const inspection = data.vehicleInspections?.find((v) => v.order_id === order.id);
-  const inspectionMarks = inspection?.marks || [];
+  const subtotalComprovante = order.subtotal ?? servicos.reduce((s, item) => s + item.price, 0);
+  const descontoComprovante = order.discount_value ? db.discountAmount(subtotalComprovante, order.discount_type, order.discount_value) : 0;
 
   return (
     <ModalShell title="Comprovante" onClose={close}>
@@ -2460,7 +2535,19 @@ function ComprovanteModal({ data, close, order, companyName }) {
           ))}
         </div>
 
-        <div className="flex justify-between font-bold text-sm border-t border-gray-200 pt-2 mt-2">
+        {descontoComprovante > 0 && (
+          <>
+            <div className="flex justify-between text-xs text-gray-500 border-t border-gray-200 pt-2 mt-2">
+              <span>Subtotal</span>
+              <span>{money(subtotalComprovante)}</span>
+            </div>
+            <div className="flex justify-between text-xs text-emerald-600 mt-0.5">
+              <span>Desconto{order.discount_type === "percentual" ? ` (${order.discount_value}%)` : ""}</span>
+              <span>- {money(descontoComprovante)}</span>
+            </div>
+          </>
+        )}
+        <div className={`flex justify-between font-bold text-sm ${descontoComprovante > 0 ? "" : "border-t border-gray-200"} pt-2 mt-2`}>
           <span>Total</span>
           <span>{money(order.total)}</span>
         </div>
@@ -2472,39 +2559,6 @@ function ComprovanteModal({ data, close, order, companyName }) {
           <span>Status</span>
           <span>{order.paid ? "Pago" : "Pendente"}</span>
         </div>
-
-        {inspection && inspection.status === "realizada" && (
-          <div className="text-xs border-t border-gray-200 pt-2 mt-2">
-            <p className="font-semibold text-gray-600 mb-1.5">Vistoria de entrada</p>
-
-            <div className="w-20 mx-auto mb-1.5">
-              <CarDiagram marks={inspectionMarks} readOnly stroke="#9ca3af" fill="#ffffff" labelColor="#9ca3af" />
-            </div>
-
-            {inspectionMarks.length === 0 ? (
-              <p className="text-center text-emerald-600 font-medium">
-                Nenhuma avaria identificada — veículo entrou sem danos aparentes.
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-1 justify-center">
-                {db.INSPECTION_MARK_TYPES.map((t) => {
-                  const count = inspectionMarks.filter((m) => m.tipo === t.value).length;
-                  if (!count) return null;
-                  return (
-                    <span key={t.value} className="flex items-center gap-1 px-1.5 py-0.5 rounded border border-gray-200 text-gray-600">
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: t.color }} />
-                      {count}x {t.label}
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-
-            {inspection.observations && (
-              <p className="text-gray-500 mt-1.5 italic text-center">"{inspection.observations}"</p>
-            )}
-          </div>
-        )}
 
         <p className="text-center text-xs text-gray-400 mt-5">Obrigado pela preferência! 🚗✨</p>
       </div>
@@ -2959,18 +3013,22 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
   const [extraProducts, setExtraProducts] = useState([]);
   const [pickedProductId, setPickedProductId] = useState("");
   const [pickedQuantity, setPickedQuantity] = useState("1");
+  const [discountType, setDiscountType] = useState("percentual");
+  const [discountValue, setDiscountValue] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const customer = data.customers.find((c) => c.id === customerId);
   const vehicleSelecionado = customer?.vehicles.find((v) => v.id === vehicleId);
   const categoriaAtiva = newCustomerMode ? newCategory : vehicleSelecionado?.category || "carro";
-  const total =
+  const subtotal =
     serviceIds.reduce((s, id) => {
       const servico = data.services.find((sv) => sv.id === id);
       return s + (servico ? db.priceForCategory(servico, categoriaAtiva, data.categoryPrices) : 0);
     }, 0) +
     extraServices.reduce((s, e) => s + e.price, 0);
+  const discount = db.discountAmount(subtotal, discountType, discountValue);
+  const total = Math.max(0, subtotal - discount);
 
   const toggleService = (id) => setServiceIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
@@ -3042,6 +3100,9 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
         service_ids: serviceIds,
         extra_services: extraServices.map(({ name, price }) => ({ name, price })),
         extra_products: extraProductsPayload,
+        subtotal,
+        discount_type: discount > 0 ? discountType : null,
+        discount_value: discount > 0 ? Number(discountValue) || 0 : 0,
         total,
         paid: false,
         attendant_id: attendantId || null,
@@ -3199,9 +3260,31 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
           </div>
         )}
 
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border)]">
-          <span className="text-sm text-[var(--text-secondary)]">Total</span>
-          <span className="font-num text-lg font-semibold text-[var(--text)]">{money(total)}</span>
+        <DescontoField
+          subtotal={subtotal}
+          discountType={discountType}
+          discountValue={discountValue}
+          onTypeChange={setDiscountType}
+          onValueChange={setDiscountValue}
+        />
+
+        <div className="flex flex-col gap-1 mt-1 pt-3 border-t border-[var(--border)]">
+          {discount > 0 && (
+            <>
+              <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
+                <span>Subtotal</span>
+                <span className="font-num">{money(subtotal)}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-emerald-400">
+                <span>Desconto</span>
+                <span className="font-num">- {money(discount)}</span>
+              </div>
+            </>
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[var(--text-secondary)]">Total</span>
+            <span className="font-num text-lg font-semibold text-[var(--text)]">{money(total)}</span>
+          </div>
         </div>
 
         {error && <p className="text-xs text-rose-400">{error}</p>}
@@ -3218,6 +3301,42 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
   );
 }
 
+function DescontoField({ subtotal, discountType, discountValue, onTypeChange, onValueChange }) {
+  return (
+    <div className="mt-1">
+      <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-1.5">Desconto</p>
+      <div className="flex gap-2">
+        <div className="flex rounded-lg overflow-hidden border border-[var(--border)] shrink-0">
+          <button
+            type="button"
+            onClick={() => onTypeChange("percentual")}
+            className={`px-3 py-2 text-xs font-medium ${discountType === "percentual" ? "bg-zinc-600 text-white" : "bg-[var(--bg)] text-[var(--text-secondary)]"}`}
+          >
+            %
+          </button>
+          <button
+            type="button"
+            onClick={() => onTypeChange("valor")}
+            className={`px-3 py-2 text-xs font-medium ${discountType === "valor" ? "bg-zinc-600 text-white" : "bg-[var(--bg)] text-[var(--text-secondary)]"}`}
+          >
+            R$
+          </button>
+        </div>
+        <input
+          value={discountValue}
+          onChange={(e) => onValueChange(e.target.value)}
+          type="number"
+          min="0"
+          step="any"
+          placeholder={discountType === "percentual" ? "0%" : "R$ 0,00"}
+          className="input flex-1"
+          disabled={!subtotal}
+        />
+      </div>
+    </div>
+  );
+}
+
 function Field({ label, children }) {
   return (
     <div>
@@ -3227,50 +3346,17 @@ function Field({ label, children }) {
   );
 }
 
+// AssinaturaView — cole este componente em algum lugar do LavaJaApp.jsx,
+// por exemplo logo ANTES da função AdminView (procure por "function AdminView()").
+
 function AssinaturaView() {
   const [subscription, setSubscription] = React.useState(undefined);
-  const [faturas, setFaturas] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
-  const [cancelando, setCancelando] = React.useState(false);
   const [erro, setErro] = React.useState("");
 
-  // Voltou do checkout do Mercado Pago (?assinatura=processando na URL).
-  // Enquanto isso, o webhook ainda não confirmou o pagamento — então
-  // avisa o dono e fica checando o status a cada poucos segundos, em
-  // vez de deixar a tela parada mostrando "Período de teste".
-  const [processandoCheckout] = React.useState(
-    () => new URLSearchParams(window.location.search).get("assinatura") === "processando"
-  );
-
-  const carregar = React.useCallback(() => {
-    return Promise.all([db.getMySubscription(), db.getMinhasFaturas()]).then(([sub, pagamentos]) => {
-      setSubscription(sub);
-      setFaturas(pagamentos);
-      return sub;
-    });
+  React.useEffect(() => {
+    db.getMySubscription().then(setSubscription);
   }, []);
-
-  React.useEffect(() => {
-    carregar();
-  }, [carregar]);
-
-  // Enquanto estiver no estado "processando" e a assinatura ainda não
-  // tiver virado "ativa", consulta de novo a cada 4s (até 2 minutos).
-  React.useEffect(() => {
-    if (!processandoCheckout) return;
-    if (subscription?.status === "ativa") {
-      const url = new URL(window.location.href);
-      url.searchParams.delete("assinatura");
-      window.history.replaceState({}, "", url);
-      return;
-    }
-    const intervalo = setInterval(carregar, 4000);
-    const limite = setTimeout(() => clearInterval(intervalo), 120000);
-    return () => {
-      clearInterval(intervalo);
-      clearTimeout(limite);
-    };
-  }, [processandoCheckout, subscription?.status, carregar]);
 
   const assinar = async () => {
     setLoading(true);
@@ -3281,23 +3367,6 @@ function AssinaturaView() {
     } catch (e) {
       setErro(e.message || "Não foi possível gerar o link de pagamento");
       setLoading(false);
-    }
-  };
-
-  const cancelar = async () => {
-    const ok = window.confirm(
-      "Cancelar sua assinatura? Você continua com acesso até o fim do período já pago, mas a renovação automática para."
-    );
-    if (!ok) return;
-    setCancelando(true);
-    setErro("");
-    try {
-      await db.cancelarAssinatura();
-      await carregar();
-    } catch (e) {
-      setErro(e.message || "Não foi possível cancelar a assinatura");
-    } finally {
-      setCancelando(false);
     }
   };
 
@@ -3321,40 +3390,18 @@ function AssinaturaView() {
     expirada: "text-rose-400",
   };
 
-  const faturaStatusLabel = {
-    approved: "Aprovado",
-    pending: "Pendente",
-    in_process: "Em análise",
-    rejected: "Recusado",
-    refunded: "Estornado",
-  };
-
   const diasRestantesTrial = subscription?.trial_fim
     ? Math.max(0, Math.ceil((new Date(subscription.trial_fim) - new Date()) / (1000 * 60 * 60 * 24)))
     : null;
-
-  const mostraProcessando = processandoCheckout && subscription?.status !== "ativa";
-  const podeCancelar = subscription?.status === "ativa" || subscription?.status === "atrasada";
 
   return (
     <div className="p-4 md:p-6 max-w-lg">
       <h2 className="text-lg font-semibold text-zinc-100 mb-4">Assinatura</h2>
 
-      {mostraProcessando && (
-        <div className="bg-amber-950/40 border border-amber-800 rounded-xl p-4 mb-4 text-sm text-amber-300">
-          Confirmando seu pagamento com o Mercado Pago... isso costuma levar só alguns
-          segundos. Esta página atualiza sozinha.
-        </div>
-      )}
-
       <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-5 mb-4">
         <p className={`font-medium mb-1 ${statusCor[subscription?.status] || "text-zinc-300"}`}>
           {statusLabel[subscription?.status] || "Status desconhecido"}
         </p>
-
-        {subscription?.plan_price != null && (
-          <p className="text-sm text-zinc-400 mb-1">Plano: {money(subscription.plan_price)}/mês</p>
-        )}
 
         {subscription?.status === "trial" && diasRestantesTrial !== null && (
           <p className="text-sm text-zinc-400">
@@ -3369,64 +3416,19 @@ function AssinaturaView() {
             Próxima cobrança em {new Date(subscription.proxima_cobranca).toLocaleDateString("pt-BR")}.
           </p>
         )}
-
-        {subscription?.status === "atrasada" && (
-          <p className="text-sm text-orange-300">
-            A última cobrança não foi aprovada. Atualize o pagamento pra manter o acesso.
-          </p>
-        )}
       </div>
 
-      <div className="flex flex-wrap gap-3 mb-6">
-        {subscription?.status !== "ativa" && (
-          <button
-            onClick={assinar}
-            disabled={loading}
-            className="bg-amber-600 hover:bg-amber-500 disabled:opacity-60 text-white font-medium px-5 py-2.5 rounded-lg"
-          >
-            {loading ? "Gerando link..." : subscription?.status === "atrasada" ? "Atualizar pagamento" : "Assinar agora"}
-          </button>
-        )}
-
-        {podeCancelar && (
-          <button
-            onClick={cancelar}
-            disabled={cancelando}
-            className="bg-transparent hover:bg-zinc-800 disabled:opacity-60 text-zinc-400 hover:text-rose-400 font-medium px-5 py-2.5 rounded-lg border border-zinc-700"
-          >
-            {cancelando ? "Cancelando..." : "Cancelar assinatura"}
-          </button>
-        )}
-      </div>
-
-      {erro && <p className="text-sm text-rose-400 mb-6">{erro}</p>}
-
-      {faturas.length > 0 && (
-        <div>
-          <h3 className="text-sm font-medium text-zinc-300 mb-2">Histórico de pagamentos</h3>
-          <div className="bg-zinc-800 border border-zinc-700 rounded-xl divide-y divide-zinc-700">
-            {faturas.map((f) => (
-              <div key={f.gateway_payment_id} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                <span className="text-zinc-400">
-                  {f.created_at ? new Date(f.created_at).toLocaleDateString("pt-BR") : "—"}
-                </span>
-                <span className="text-zinc-200">{money(f.valor)}</span>
-                <span
-                  className={
-                    f.status === "approved"
-                      ? "text-emerald-400"
-                      : f.status === "rejected"
-                      ? "text-rose-400"
-                      : "text-amber-400"
-                  }
-                >
-                  {faturaStatusLabel[f.status] || f.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+      {subscription?.status !== "ativa" && (
+        <button
+          onClick={assinar}
+          disabled={loading}
+          className="bg-amber-600 hover:bg-amber-500 disabled:opacity-60 text-white font-medium px-5 py-2.5 rounded-lg"
+        >
+          {loading ? "Gerando link..." : "Assinar agora"}
+        </button>
       )}
+
+      {erro && <p className="text-sm text-rose-400 mt-2">{erro}</p>}
     </div>
   );
 }
