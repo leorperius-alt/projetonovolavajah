@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { X, Camera, Trash2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { X, Camera, Trash2, AlertTriangle, CheckCircle2, SwitchCamera } from "lucide-react";
 import * as db from "./lib/db";
 
 // Shell de modal mais largo que o padrão (o padrão é max-w-md), pra caber
@@ -106,6 +106,140 @@ function MarkTypeLegend({ tipoAtual, setTipoAtual }) {
   );
 }
 
+// ---- Overlay: câmera embutida no próprio app ----
+// Por quê: no Android, abrir o app de câmera nativo (via <input capture>)
+// joga a aba pro segundo plano, e o sistema às vezes mata o processo do
+// Chrome pra liberar memória. Ao voltar, a página recarrega do zero e o
+// checklist inteiro (fotos, marcações, observações) se perde. Capturando a
+// foto sem sair da página, esse cenário nunca acontece.
+function CameraOverlay({ remaining, onCapture, onClose, onUnsupported }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const [facingMode, setFacingMode] = useState("environment");
+  const [erro, setErro] = useState("");
+  const [pronta, setPronta] = useState(false);
+
+  const pararStream = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+  };
+
+  useEffect(() => {
+    let cancelado = false;
+    setPronta(false);
+    setErro("");
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      onUnsupported();
+      return;
+    }
+
+    pararStream();
+    navigator.mediaDevices
+      .getUserMedia({ video: { facingMode: { ideal: facingMode } }, audio: false })
+      .then((stream) => {
+        if (cancelado) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+        setPronta(true);
+      })
+      .catch((err) => {
+        if (cancelado) return;
+        console.error(err);
+        setErro("Não deu pra acessar a câmera. Confira a permissão ou use a opção do celular.");
+      });
+
+    return () => {
+      cancelado = true;
+      pararStream();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [facingMode]);
+
+  const trocarCamera = () => setFacingMode((f) => (f === "environment" ? "user" : "environment"));
+
+  const tirarFoto = () => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) return;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        const file = new File([blob], `vistoria-${Date.now()}.jpg`, { type: "image/jpeg" });
+        onCapture(file);
+      },
+      "image/jpeg",
+      0.85
+    );
+  };
+
+  const fechar = () => {
+    pararStream();
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black z-[60] flex flex-col">
+      <div className="flex items-center justify-between px-4 py-3 text-white">
+        <span className="text-sm font-medium">{remaining} foto(s) restante(s)</span>
+        <button onClick={fechar} className="p-1.5 -m-1.5">
+          <X size={22} />
+        </button>
+      </div>
+
+      <div className="flex-1 relative flex items-center justify-center overflow-hidden">
+        {erro ? (
+          <div className="text-center text-white text-sm px-6 flex flex-col items-center gap-3">
+            <AlertTriangle size={28} className="text-amber-400" />
+            <p>{erro}</p>
+            <button
+              onClick={onUnsupported}
+              className="bg-white/10 hover:bg-white/20 rounded-lg px-4 py-2 text-sm font-medium"
+            >
+              Usar câmera do celular
+            </button>
+          </div>
+        ) : (
+          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
+        )}
+        <canvas ref={canvasRef} className="hidden" />
+      </div>
+
+      {!erro && (
+        <div className="flex items-center justify-center gap-8 px-4 py-6">
+          <button
+            type="button"
+            onClick={trocarCamera}
+            disabled={!pronta}
+            className="text-white/80 hover:text-white disabled:opacity-40 p-2"
+            title="Trocar câmera"
+          >
+            <SwitchCamera size={26} />
+          </button>
+          <button
+            type="button"
+            onClick={tirarFoto}
+            disabled={!pronta || remaining <= 0}
+            className="w-16 h-16 rounded-full bg-white disabled:opacity-40 ring-4 ring-white/30"
+            title="Tirar foto"
+          />
+          <div className="w-[26px]" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---- Modal: fazer a vistoria antes de iniciar a lavagem ----
 export function VistoriaModal({ data, companyId, myUserId, order, refetch, close }) {
   const customer = data.customers.find((c) => c.id === order.customer_id);
@@ -117,6 +251,8 @@ export function VistoriaModal({ data, companyId, myUserId, order, refetch, close
   const [observations, setObservations] = useState("");
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState("");
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const fallbackInputRef = useRef(null);
 
   const addMark = ({ x, y }) => setMarks((prev) => [...prev, { x, y, tipo: tipoAtual }]);
   const removeLastMark = () => setMarks((prev) => prev.slice(0, -1));
@@ -127,6 +263,12 @@ export function VistoriaModal({ data, companyId, myUserId, order, refetch, close
     const novas = files.map((file) => ({ file, previewUrl: URL.createObjectURL(file) }));
     setPhotos((prev) => [...prev, ...novas]);
     e.target.value = "";
+  };
+
+  // Usado pela câmera embutida (CameraOverlay) — uma foto por vez, sem
+  // passar pelo <input type="file">, então sem risco de sair da página.
+  const handleCameraCapture = (file) => {
+    setPhotos((prev) => (prev.length >= 6 ? prev : [...prev, { file, previewUrl: URL.createObjectURL(file) }]));
   };
 
   const removePhoto = (idx) => setPhotos((prev) => prev.filter((_, i) => i !== idx));
@@ -186,6 +328,7 @@ export function VistoriaModal({ data, companyId, myUserId, order, refetch, close
   };
 
   return (
+    <>
     <VistoriaShell title={`Vistoria — ${vehicle?.plate || "veículo"}${vehicle?.model ? " · " + vehicle.model : ""}`} onClose={close}>
       <div className="flex flex-col gap-4">
         <p className="text-sm text-[var(--text-secondary)]">
@@ -220,12 +363,25 @@ export function VistoriaModal({ data, companyId, myUserId, order, refetch, close
               </div>
             ))}
             {photos.length < 6 && (
-              <label className="w-16 h-16 rounded-lg border border-dashed border-[var(--border)] flex flex-col items-center justify-center gap-1 text-[var(--text-muted)] cursor-pointer hover:border-zinc-400">
+              <button
+                type="button"
+                onClick={() => setCameraOpen(true)}
+                className="w-16 h-16 rounded-lg border border-dashed border-[var(--border)] flex flex-col items-center justify-center gap-1 text-[var(--text-muted)] cursor-pointer hover:border-zinc-400"
+              >
                 <Camera size={18} />
                 <span className="text-[9px]">Adicionar</span>
-                <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={handleFiles} />
-              </label>
+              </button>
             )}
+            {/* Fallback: só é acionado se a câmera embutida não estiver disponível no aparelho */}
+            <input
+              ref={fallbackInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              multiple
+              className="hidden"
+              onChange={handleFiles}
+            />
           </div>
         </div>
 
@@ -256,6 +412,18 @@ export function VistoriaModal({ data, companyId, myUserId, order, refetch, close
         </div>
       </div>
     </VistoriaShell>
+    {cameraOpen && (
+      <CameraOverlay
+        remaining={6 - photos.length}
+        onCapture={handleCameraCapture}
+        onClose={() => setCameraOpen(false)}
+        onUnsupported={() => {
+          setCameraOpen(false);
+          fallbackInputRef.current?.click();
+        }}
+      />
+    )}
+    </>
   );
 }
 
