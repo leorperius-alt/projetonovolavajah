@@ -61,7 +61,6 @@ export default function LavaJaApp({ onLogout }) {
   const [loyaltyThreshold, setLoyaltyThreshold] = useState(10);
   const [overdueDaysThreshold, setOverdueDaysThreshold] = useState(7);
   const [relatoriosInitialDate, setRelatoriosInitialDate] = useState(null);
-  const [finSub, setFinSub] = useState("financeiro");
   const [myRole, setMyRole] = useState(null);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [myUserId, setMyUserId] = useState(null);
@@ -178,8 +177,7 @@ export default function LavaJaApp({ onLogout }) {
     { id: "fila", label: "Fila", icon: Car },
     { id: "agenda", label: "Agenda", icon: CalendarClock },
     { id: "clientes", label: "Clientes", icon: Users },
-    { id: "servicos", label: "Serviços", icon: Wrench },
-    { id: "estoque", label: "Estoque", icon: Package },
+    { id: "servicos", label: "Serviços e Estoque", icon: Wrench },
     { id: "financeiro", label: "Financeiro", icon: Wallet, ownerOnly: true },
     { id: "comissoes", label: "Comissões", icon: Percent, ownerOnly: true },
     { id: "equipe", label: "Equipe", icon: UserPlus, ownerOnly: true },
@@ -266,12 +264,20 @@ export default function LavaJaApp({ onLogout }) {
         {activeTab === "dashboard" && isOwner && (
           <DashboardView
             data={data}
-            setTab={(t) => { if (t === "financeiro") setFinSub("financeiro"); setTab(t); }}
+            setTab={(t) => {
+              const goTo = (tabId, secId) => {
+                setTab(tabId);
+                setTimeout(() => document.getElementById(secId)?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+              };
+              if (t === "estoque") return goTo("servicos", "sec-estoque");
+              if (t === "financeiro") return goTo("financeiro", "sec-financeiro");
+              setTab(t);
+            }}
             overdueDaysThreshold={overdueDaysThreshold}
             onSelectDay={(iso) => {
               setRelatoriosInitialDate(iso);
-              setFinSub("relatorios");
               setTab("financeiro");
+              setTimeout(() => document.getElementById("sec-relatorios")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
             }}
           />
         )}
@@ -288,20 +294,19 @@ export default function LavaJaApp({ onLogout }) {
             setLoyaltyThreshold={setLoyaltyThreshold}
           />
         )}
-        {activeTab === "servicos" && <ServicosView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
-        {activeTab === "estoque" && <EstoqueView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />}
+        {activeTab === "servicos" && (
+          <div>
+            <section id="sec-servicos">
+              <ServicosView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />
+            </section>
+            <section id="sec-estoque" className="border-t border-[var(--border)]">
+              <EstoqueView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />
+            </section>
+          </div>
+        )}
         {activeTab === "financeiro" && isOwner && (
           <div>
-            <div className="px-4 md:px-6 pt-4 md:pt-6">
-              <div className="inline-flex gap-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-1">
-                {[{ k: "financeiro", l: "Financeiro" }, { k: "relatorios", l: "Relatórios" }].map((o) => (
-                  <button key={o.k} onClick={() => setFinSub(o.k)} className={`text-sm font-medium px-4 py-1.5 rounded-lg ${finSub === o.k ? "bg-[#d4af6a] text-[#2e3138]" : "text-[var(--text-secondary)]"}`}>
-                    {o.l}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {finSub === "financeiro" ? (
+            <section id="sec-financeiro">
               <FinanceiroView
                 data={data}
                 companyId={companyId}
@@ -310,9 +315,10 @@ export default function LavaJaApp({ onLogout }) {
                 overdueDaysThreshold={overdueDaysThreshold}
                 setOverdueDaysThreshold={setOverdueDaysThreshold}
               />
-            ) : (
+            </section>
+            <section id="sec-relatorios" className="border-t border-[var(--border)]">
               <RelatoriosView data={data} initialDate={relatoriosInitialDate} onConsumedInitialDate={() => setRelatoriosInitialDate(null)} setModal={setModal} />
-            )}
+            </section>
           </div>
         )}
         {activeTab === "comissoes" && isOwner && <ComissoesView data={data} />}
