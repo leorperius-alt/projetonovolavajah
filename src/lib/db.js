@@ -9,6 +9,7 @@ import {
   NET_TIMEOUT_LONG_MS,
   SUBSCRIPTION_GRACE_MS,
 } from "./offline";
+import { applyQueue, getQueue, mutate, newId } from "./syncQueue";
 
 export async function getMyCompanyId() {
   const { data: auth } = await supabase.auth.getUser();
@@ -134,12 +135,13 @@ export async function fetchAll(companyId) {
     if (!results.some((r) => r.error)) {
       await cacheSet(`data:${companyId}`, fresh);
     }
-    return fresh;
+    // Alterações feitas offline que ainda não subiram continuam aparecendo na tela
+    return applyQueue(fresh, await getQueue());
   } catch (err) {
     if (isNetworkError(err)) {
       const cached = await cacheGet(`data:${companyId}`);
       if (cached?.value) {
-        return { ...cached.value, _fromCache: true, _cachedAt: cached.savedAt };
+        return { ...applyQueue(cached.value, await getQueue()), _fromCache: true, _cachedAt: cached.savedAt };
       }
       // sem cópia salva: mesmo comportamento de antes (listas vazias)
       return { ...emptyData(), _fromCache: true, _cachedAt: null };
@@ -167,21 +169,23 @@ export function subscribeToChanges(companyId, onChange) {
 
 // ---- Clientes e veículos ----
 export async function createCustomer(companyId, { name, phone, vehicle }) {
-  const { data: customer, error } = await supabase
-    .from("customers")
-    .insert({ company_id: companyId, name, phone })
-    .select()
-    .single();
-  if (error) throw error;
+  const customer = { id: newId(), company_id: companyId, name, phone };
+  await mutate({ type: "insert", table: "customers", row: customer });
+  let vehicleId = null;
   if (vehicle?.plate) {
-    await supabase.from("vehicles").insert({ company_id: companyId, customer_id: customer.id, ...vehicle });
+    try {
+      const id = newId();
+      await mutate({ type: "insert", table: "vehicles", row: { id, company_id: companyId, customer_id: customer.id, ...vehicle } });
+      vehicleId = id;
+    } catch {
+      // como antes: se só o veículo falhar, o cliente continua salvo
+    }
   }
-  return customer;
+  return { ...customer, vehicleId };
 }
 
 export async function createVehicle(companyId, customerId, vehicle) {
-  const { error } = await supabase.from("vehicles").insert({ company_id: companyId, customer_id: customerId, ...vehicle });
-  if (error) throw error;
+  await mutate({ type: "insert", table: "vehicles", row: { id: newId(), company_id: companyId, customer_id: customerId, ...vehicle } });
 }
 
 export async function deleteCustomer(id) {
@@ -190,13 +194,11 @@ export async function deleteCustomer(id) {
 }
 
 export async function updateCustomer(id, { name, phone }) {
-  const { error } = await supabase.from("customers").update({ name, phone }).eq("id", id);
-  if (error) throw error;
+  await mutate({ type: "update", table: "customers", id, patch: { name, phone } });
 }
 
 export async function updateVehicle(id, { plate, model, color, category }) {
-  const { error } = await supabase.from("vehicles").update({ plate, model, color, category }).eq("id", id);
-  if (error) throw error;
+  await mutate({ type: "update", table: "vehicles", id, patch: { plate, model, color, category } });
 }
 
 export async function deleteVehicle(id) {
@@ -222,18 +224,17 @@ export async function deleteService(id) {
 
 // ---- Pedidos ----
 export async function createOrder(companyId, order) {
-  const { error } = await supabase.from("orders").insert({ company_id: companyId, ...order });
-  if (error) throw error;
+  const id = order.id || newId();
+  await mutate({ type: "insert", table: "orders", row: { ...order, id, company_id: companyId } });
+  return id;
 }
 
 export async function updateOrderStatus(id, status, extra = {}) {
-  const { error } = await supabase.from("orders").update({ status, ...extra }).eq("id", id);
-  if (error) throw error;
+  await mutate({ type: "update", table: "orders", id, patch: { status, ...extra } });
 }
 
 export async function togglePaid(id, paid) {
-  const { error } = await supabase.from("orders").update({ paid }).eq("id", id);
-  if (error) throw error;
+  await mutate({ type: "update", table: "orders", id, patch: { paid } });
 }
 
 export const PAYMENT_METHODS = [
@@ -284,17 +285,12 @@ export async function removeCategoryPrice(id) {
 
 export async function finalizeDelivery(id, paymentMethod, adjust = {}) {
   const paid = paymentMethod !== "a_faturar";
-  const { error } = await supabase
-    .from("orders")
-    .update({ status: "entregue", payment_method: paymentMethod, paid, ...adjust })
-    .eq("id", id);
-  if (error) throw error;
+  await mutate({ type: "update", table: "orders", id, patch: { status: "entregue", payment_method: paymentMethod, paid, ...adjust } });
 }
 
 export async function setPaymentMethod(id, paymentMethod) {
   const paid = paymentMethod !== "a_faturar";
-  const { error } = await supabase.from("orders").update({ payment_method: paymentMethod, paid }).eq("id", id);
-  if (error) throw error;
+  await mutate({ type: "update", table: "orders", id, patch: { payment_method: paymentMethod, paid } });
 }
 
 // ---- Vistoria de veículo (checklist de avarias) ----
@@ -429,13 +425,17 @@ export async function redeemInvite(token, userId, fullName) {
 
 // ---- Despesas ----
 export async function createExpense(companyId, { description, amount, expense_date }) {
-  const { error } = await supabase.from("expenses").insert({
-    company_id: companyId,
-    description,
-    amount,
-    expense_date: expense_date || new Date().toISOString().slice(0, 10),
+  await mutate({
+    type: "insert",
+    table: "expenses",
+    row: {
+      id: newId(),
+      company_id: companyId,
+      description,
+      amount,
+      expense_date: expense_date || new Date().toISOString().slice(0, 10),
+    },
   });
-  if (error) throw error;
 }
 
 export async function deleteExpense(id) {
@@ -461,13 +461,7 @@ export async function deleteProduct(id) {
 }
 
 export async function registerMovement(productId, type, quantity, note) {
-  const { error } = await supabase.rpc("adjust_stock", {
-    p_product_id: productId,
-    p_type: type,
-    p_quantity: quantity,
-    p_note: note || null,
-  });
-  if (error) throw error;
+  await mutate({ type: "stock", productId, moveType: type, quantity, note: note || null });
 }
 
 export async function fetchMovements(productId) {
@@ -522,8 +516,7 @@ export async function cancelOrder(order, serviceProducts) {
   if (order.status !== "agendado") {
     await reverseOrderStock(order.service_ids, order.extra_products, serviceProducts, "Estorno — pedido cancelado");
   }
-  const { error } = await supabase.from("orders").update({ status: "cancelado" }).eq("id", order.id);
-  if (error) throw error;
+  await mutate({ type: "update", table: "orders", id: order.id, patch: { status: "cancelado" } });
 }
 
 export async function updateOrderServices(order, updates, serviceProducts) {
@@ -531,8 +524,7 @@ export async function updateOrderServices(order, updates, serviceProducts) {
   if (estoqueJaConsumido) {
     await reverseOrderStock(order.service_ids, order.extra_products, serviceProducts, "Ajuste — edição de pedido");
   }
-  const { error } = await supabase.from("orders").update(updates).eq("id", order.id);
-  if (error) throw error;
+  await mutate({ type: "update", table: "orders", id: order.id, patch: updates });
   if (estoqueJaConsumido) {
     await consumeOrderStock(updates.service_ids, updates.extra_products, serviceProducts, "Ajuste — edição de pedido");
   }
