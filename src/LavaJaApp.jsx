@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./lib/db";
+import { getCurrentUserId, useOnlineStatus } from "./lib/offline";
 import { reportError } from "./sentry.js";
 import ThemeToggle from "./ThemeToggle.jsx";
 import { VistoriaModal, VistoriaViewModal } from "./VistoriaModal.jsx";
@@ -70,6 +71,7 @@ export default function LavaJaApp({ onLogout }) {
   const [tab, setTab] = useState("fila");
   const [modal, setModal] = useState(null);
 
+  const online = useOnlineStatus();
   const isOwner = myRole === "owner";
 
   const refetch = useCallback(async (cid) => {
@@ -90,8 +92,7 @@ export default function LavaJaApp({ onLogout }) {
 
   useEffect(() => {
     (async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      setMyUserId(auth?.user?.id || null);
+      setMyUserId(await getCurrentUserId());
 
       const [profile, admin] = await Promise.all([loadProfileWithRetry(), db.checkIsPlatformAdmin()]);
       setIsPlatformAdmin(admin);
@@ -106,7 +107,7 @@ export default function LavaJaApp({ onLogout }) {
       if (profile?.role === "owner") setTab("dashboard");
       else if (!cid && admin) setTab("admin");
       if (cid) {
-        const { data: company } = await supabase.from("companies").select("name, loyalty_threshold, overdue_days_threshold").eq("id", cid).single();
+        const company = await db.getCompanyInfo(cid);
         setCompanyName(company?.name || "");
         setLoyaltyThreshold(company?.loyalty_threshold || 10);
         setOverdueDaysThreshold(company?.overdue_days_threshold || 7);
@@ -130,6 +131,18 @@ export default function LavaJaApp({ onLogout }) {
     const unsubscribe = db.subscribeToChanges(companyId, () => refetch(companyId));
     return unsubscribe;
   }, [companyId, refetch]);
+
+  // Mostrando dados salvos (sem internet ou conexão ruim): tenta atualizar sozinho
+  useEffect(() => {
+    if (!companyId || !data._fromCache) return;
+    const retry = () => refetch(companyId);
+    const timer = setInterval(retry, 20000);
+    window.addEventListener("online", retry);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("online", retry);
+    };
+  }, [companyId, data._fromCache, refetch]);
 
   useEffect(() => {
     if (!companyId) return;
@@ -261,6 +274,13 @@ export default function LavaJaApp({ onLogout }) {
       </div>
 
       <div className="flex-1 overflow-y-auto pb-24 md:pb-0">
+        {(!online || data._fromCache) && (
+          <div className="sticky top-0 z-30 bg-amber-500 text-zinc-900 text-xs font-medium px-4 py-2 text-center">
+            Sem conexão estável — mostrando os dados salvos
+            {data._cachedAt ? ` em ${new Date(data._cachedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""}
+            . Alterações só funcionam com internet.
+          </div>
+        )}
         {activeTab === "dashboard" && isOwner && (
           <DashboardView
             data={data}
