@@ -8,6 +8,7 @@ import MfaChallenge from "./MfaChallenge.jsx";
 import SubscriptionGate from "./SubscriptionGate.jsx";
 import * as db from "./lib/db";
 import { setSentryUser } from "./sentry.js";
+import { getSyncStatus, refreshSyncStatus, syncNow } from "./lib/syncQueue";
 import { cacheGet, cacheSet, clearOfflineData, getIdentity, isNetworkError, setIdentity } from "./lib/offline";
 
 export default function App() {
@@ -104,6 +105,16 @@ export default function App() {
 
   // Logout apaga a cópia offline deste aparelho (dados de cada empresa ficam isolados)
   const handleLogout = async () => {
+    // Antes de sair, tenta enviar o que ficou pendente; se não der, avisa que vai perder
+    await syncNow();
+    await refreshSyncStatus();
+    const pending = getSyncStatus().pending;
+    if (pending > 0) {
+      const ok = window.confirm(
+        `Há ${pending} alteração(ões) que ainda não foram enviadas por falta de internet. Se sair agora, elas serão perdidas. Sair mesmo assim?`
+      );
+      if (!ok) return;
+    }
     await clearOfflineData();
     try {
       await supabase.auth.signOut({ scope: navigator.onLine === false ? "local" : "global" });
