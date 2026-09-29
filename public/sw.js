@@ -1,5 +1,7 @@
-const CACHE_NAME = "detalhapro-v2";
+const CACHE_NAME = "detalhapro-v3";
 const ASSETS_TO_CACHE = ["/", "/manifest.json", "/logo.png"];
+// Com conexão ruim, espera pouco pela rede antes de usar a cópia salva
+const NETWORK_TIMEOUT_MS = 4000;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -17,25 +19,41 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-self.addEventListener("fetch", (event) => {
-  const { request } = event;
+function networkFirst(request) {
+  return caches.match(request).then((cachedExact) => {
+    // Navegação para outra URL do app (ex: com ?parametro) cai na página principal salva
+    const cachedPromise =
+      cachedExact || request.mode !== "navigate" ? Promise.resolve(cachedExact) : caches.match("/");
 
-  // Nunca cachear chamadas à API do Supabase — precisam ser sempre em tempo real
-  if (request.url.includes("supabase.co")) return;
-  if (request.method !== "GET") return;
-
-  // Rede primeiro: sempre busca a versão mais nova quando há conexão.
-  // O cache só entra como fallback quando o usuário está offline —
-  // assim um deploy novo aparece na hora, sem depender de o cache expirar.
-  event.respondWith(
-    fetch(request)
-      .then((response) => {
-        if (response && response.status === 200) {
+    return cachedPromise.then((cached) => {
+      const network = fetch(request).then((response) => {
+        // Guarda respostas normais e também as de outros domínios (Tailwind CDN, fontes),
+        // que chegam como "opaque" e são necessárias para o app ficar bonito offline.
+        if (response && (response.status === 200 || response.type === "opaque")) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         }
         return response;
-      })
-      .catch(() => caches.match(request))
-  );
+      });
+
+      // Sem cópia salva: só resta a rede
+      if (!cached) return network;
+
+      // Com cópia salva: rede primeiro, mas sem esperar para sempre
+      const timeout = new Promise((resolve) => setTimeout(() => resolve(cached), NETWORK_TIMEOUT_MS));
+      return Promise.race([network.catch(() => cached), timeout]);
+    });
+  });
+}
+
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+
+  // Nunca cachear chamadas à API do Supabase — os dados offline ficam no IndexedDB do app
+  if (request.url.includes("supabase.co")) return;
+  if (request.method !== "GET") return;
+
+  // Rede primeiro: um deploy novo aparece na hora quando há conexão.
+  // O cache entra como fallback offline ou quando a rede está lenta demais.
+  event.respondWith(networkFirst(request));
 });
