@@ -1,4 +1,14 @@
 import { supabase } from "../supabaseClient";
+import {
+  cacheGet,
+  cacheSet,
+  getCurrentUserId,
+  isNetworkError,
+  withTimeout,
+  NET_TIMEOUT_MS,
+  NET_TIMEOUT_LONG_MS,
+  SUBSCRIPTION_GRACE_MS,
+} from "./offline";
 
 export async function getMyCompanyId() {
   const { data: auth } = await supabase.auth.getUser();
@@ -13,15 +23,42 @@ export async function getMyCompanyId() {
 }
 
 export async function getMyProfile() {
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth?.user) return null;
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("company_id, role, full_name, blocked")
-    .eq("id", auth.user.id)
-    .single();
-  if (error) return null;
-  return data;
+  const uid = await getCurrentUserId();
+  if (!uid) return null;
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from("profiles").select("company_id, role, full_name, blocked").eq("id", uid).single(),
+      NET_TIMEOUT_MS
+    );
+    if (error) throw error;
+    await cacheSet("profile", data);
+    return data;
+  } catch (err) {
+    if (isNetworkError(err)) {
+      const cached = await cacheGet("profile");
+      return cached?.value || null;
+    }
+    return null;
+  }
+}
+
+// Dados da empresa (nome e limites) — com cópia offline
+export async function getCompanyInfo(companyId) {
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from("companies").select("name, loyalty_threshold, overdue_days_threshold").eq("id", companyId).single(),
+      NET_TIMEOUT_MS
+    );
+    if (error) throw error;
+    await cacheSet(`company:${companyId}`, data);
+    return data;
+  } catch (err) {
+    if (isNetworkError(err)) {
+      const cached = await cacheGet(`company:${companyId}`);
+      return cached?.value || null;
+    }
+    return null;
+  }
 }
 
 export function subscribeToMyProfile(userId, onChange) {
@@ -32,42 +69,83 @@ export function subscribeToMyProfile(userId, onChange) {
   return () => supabase.removeChannel(channel);
 }
 
-export async function fetchAll(companyId) {
-  const [customersRes, vehiclesRes, servicesRes, ordersRes, expensesRes, productsRes, serviceProductsRes, teamRes, categoryPricesRes, inspectionsRes] = await Promise.all([
-    supabase.from("customers").select("*").eq("company_id", companyId).order("name"),
-    supabase.from("vehicles").select("*").eq("company_id", companyId),
-    supabase.from("services").select("*").eq("company_id", companyId).order("name"),
-    supabase.from("orders").select("*").eq("company_id", companyId).order("created_at", { ascending: false }),
-    supabase.from("expenses").select("*").eq("company_id", companyId).order("expense_date", { ascending: false }),
-    supabase.from("products").select("*").eq("company_id", companyId).order("name"),
-    supabase.from("service_products").select("*").eq("company_id", companyId),
-    supabase.from("profiles").select("id, full_name, role, commission_rate, blocked").eq("company_id", companyId).order("full_name"),
-    supabase.from("service_category_prices").select("*").eq("company_id", companyId),
-    supabase.from("vehicle_inspections").select("*").eq("company_id", companyId).order("created_at", { ascending: false }),
-  ]);
-
-  const vehiclesByCustomer = {};
-  (vehiclesRes.data || []).forEach((v) => {
-    vehiclesByCustomer[v.customer_id] = vehiclesByCustomer[v.customer_id] || [];
-    vehiclesByCustomer[v.customer_id].push(v);
-  });
-
-  const customers = (customersRes.data || []).map((c) => ({
-    ...c,
-    vehicles: vehiclesByCustomer[c.id] || [],
-  }));
-
+function emptyData() {
   return {
-    customers,
-    services: servicesRes.data || [],
-    orders: ordersRes.data || [],
-    expenses: expensesRes.data || [],
-    products: productsRes.data || [],
-    serviceProducts: serviceProductsRes.data || [],
-    team: teamRes.data || [],
-    categoryPrices: categoryPricesRes.data || [],
-    vehicleInspections: inspectionsRes.data || [],
+    customers: [],
+    services: [],
+    orders: [],
+    expenses: [],
+    products: [],
+    serviceProducts: [],
+    team: [],
+    categoryPrices: [],
+    vehicleInspections: [],
   };
+}
+
+export async function fetchAll(companyId) {
+  try {
+    const results = await withTimeout(
+      Promise.all([
+        supabase.from("customers").select("*").eq("company_id", companyId).order("name"),
+        supabase.from("vehicles").select("*").eq("company_id", companyId),
+        supabase.from("services").select("*").eq("company_id", companyId).order("name"),
+        supabase.from("orders").select("*").eq("company_id", companyId).order("created_at", { ascending: false }),
+        supabase.from("expenses").select("*").eq("company_id", companyId).order("expense_date", { ascending: false }),
+        supabase.from("products").select("*").eq("company_id", companyId).order("name"),
+        supabase.from("service_products").select("*").eq("company_id", companyId),
+        supabase.from("profiles").select("id, full_name, role, commission_rate, blocked").eq("company_id", companyId).order("full_name"),
+        supabase.from("service_category_prices").select("*").eq("company_id", companyId),
+        supabase.from("vehicle_inspections").select("*").eq("company_id", companyId).order("created_at", { ascending: false }),
+      ]),
+      NET_TIMEOUT_LONG_MS
+    );
+
+    // Falha de rede em qualquer tabela → usa a cópia salva (não mistura dado velho com novo)
+    const netFail = results.find((r) => r.error && isNetworkError(r.error));
+    if (netFail) throw netFail.error;
+
+    const [customersRes, vehiclesRes, servicesRes, ordersRes, expensesRes, productsRes, serviceProductsRes, teamRes, categoryPricesRes, inspectionsRes] = results;
+
+    const vehiclesByCustomer = {};
+    (vehiclesRes.data || []).forEach((v) => {
+      vehiclesByCustomer[v.customer_id] = vehiclesByCustomer[v.customer_id] || [];
+      vehiclesByCustomer[v.customer_id].push(v);
+    });
+
+    const customers = (customersRes.data || []).map((c) => ({
+      ...c,
+      vehicles: vehiclesByCustomer[c.id] || [],
+    }));
+
+    const fresh = {
+      customers,
+      services: servicesRes.data || [],
+      orders: ordersRes.data || [],
+      expenses: expensesRes.data || [],
+      products: productsRes.data || [],
+      serviceProducts: serviceProductsRes.data || [],
+      team: teamRes.data || [],
+      categoryPrices: categoryPricesRes.data || [],
+      vehicleInspections: inspectionsRes.data || [],
+    };
+
+    // Só guarda a cópia quando tudo veio sem erro (nunca sobrescreve com dado incompleto)
+    if (!results.some((r) => r.error)) {
+      await cacheSet(`data:${companyId}`, fresh);
+    }
+    return fresh;
+  } catch (err) {
+    if (isNetworkError(err)) {
+      const cached = await cacheGet(`data:${companyId}`);
+      if (cached?.value) {
+        return { ...cached.value, _fromCache: true, _cachedAt: cached.savedAt };
+      }
+      // sem cópia salva: mesmo comportamento de antes (listas vazias)
+      return { ...emptyData(), _fromCache: true, _cachedAt: null };
+    }
+    throw err;
+  }
 }
 
 export function subscribeToChanges(companyId, onChange) {
@@ -462,9 +540,18 @@ export async function updateOrderServices(order, updates, serviceProducts) {
 
 // ---- Administração da plataforma (multi-empresa) ----
 export async function checkIsPlatformAdmin() {
-  const { data, error } = await supabase.rpc("is_platform_admin");
-  if (error) return false;
-  return !!data;
+  try {
+    const { data, error } = await withTimeout(supabase.rpc("is_platform_admin"), NET_TIMEOUT_MS);
+    if (error) throw error;
+    await cacheSet("is-admin", !!data);
+    return !!data;
+  } catch (err) {
+    if (isNetworkError(err)) {
+      const cached = await cacheGet("is-admin");
+      return !!cached?.value;
+    }
+    return false;
+  }
 }
 
 export async function fetchAllCompanies() {
@@ -528,9 +615,21 @@ export async function exportCompanyBackup(companyId) {
 // ============================================================
 
 export async function getMySubscription() {
-  const { data, error } = await supabase.rpc("my_subscription_status");
-  if (error) return null;
-  return data?.[0] || null;
+  try {
+    const { data, error } = await withTimeout(supabase.rpc("my_subscription_status"), NET_TIMEOUT_MS);
+    if (error) throw error;
+    const result = data?.[0] || null;
+    await cacheSet("subscription", result);
+    return result;
+  } catch (err) {
+    if (isNetworkError(err)) {
+      // Sem internet: aceita o último status salvo por alguns dias (carência)
+      const cached = await cacheGet("subscription");
+      if (cached && Date.now() - cached.savedAt <= SUBSCRIPTION_GRACE_MS) return cached.value;
+      return { __offlineExpired: true };
+    }
+    return null;
+  }
 }
 
 export async function criarLinkAssinatura() {
