@@ -10,6 +10,7 @@ import {
 import { supabase } from "./supabaseClient";
 import * as db from "./lib/db";
 import { getCurrentUserId, useOnlineStatus } from "./lib/offline";
+import { discardFailed, onSynced, startAutoSync, useSyncStatus } from "./lib/syncQueue";
 import { reportError } from "./sentry.js";
 import ThemeToggle from "./ThemeToggle.jsx";
 import { VistoriaModal, VistoriaViewModal } from "./VistoriaModal.jsx";
@@ -72,6 +73,7 @@ export default function LavaJaApp({ onLogout }) {
   const [modal, setModal] = useState(null);
 
   const online = useOnlineStatus();
+  const sync = useSyncStatus();
   const isOwner = myRole === "owner";
 
   const refetch = useCallback(async (cid) => {
@@ -143,6 +145,17 @@ export default function LavaJaApp({ onLogout }) {
       window.removeEventListener("online", retry);
     };
   }, [companyId, data._fromCache, refetch]);
+
+  // Envio automático das alterações feitas offline
+  useEffect(() => {
+    if (!companyId) return;
+    const stop = startAutoSync();
+    const off = onSynced(() => refetch(companyId));
+    return () => {
+      stop();
+      off();
+    };
+  }, [companyId, refetch]);
 
   useEffect(() => {
     if (!companyId) return;
@@ -274,11 +287,24 @@ export default function LavaJaApp({ onLogout }) {
       </div>
 
       <div className="flex-1 overflow-y-auto pb-24 md:pb-0">
-        {(!online || data._fromCache) && (
+        {(!online || data._fromCache || sync.pending > 0) && (
           <div className="sticky top-0 z-30 bg-amber-500 text-zinc-900 text-xs font-medium px-4 py-2 text-center">
-            Sem conexão estável — mostrando os dados salvos
-            {data._cachedAt ? ` em ${new Date(data._cachedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""}
-            . Alterações só funcionam com internet.
+            {!online || data._fromCache ? (
+              <>
+                Sem conexão estável — mostrando os dados salvos
+                {data._cachedAt ? ` em ${new Date(data._cachedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""}
+                . O que você fizer fica salvo no aparelho e sobe quando a internet voltar.
+              </>
+            ) : (
+              "Enviando as alterações feitas sem internet..."
+            )}
+            {sync.pending > 0 && ` (${sync.pending} aguardando envio)`}
+          </div>
+        )}
+        {sync.failed > 0 && (
+          <div className="sticky top-0 z-30 bg-red-600 text-white text-xs font-medium px-4 py-2 text-center">
+            {sync.failed} alteração(ões) feita(s) sem internet foi(ram) recusada(s) pelo servidor e não foi(ram) salva(s).{" "}
+            <button onClick={discardFailed} className="underline font-semibold">Entendi</button>
           </div>
         )}
         {activeTab === "dashboard" && isOwner && (
@@ -3119,11 +3145,8 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
           phone: onlyDigits(newPhone),
           vehicle: { plate: normalizePlate(newPlate), model: newModel.trim(), color: newColor.trim(), category: newCategory },
         });
-        // recarrega para pegar o veículo criado junto
-        const fresh = await db.fetchAll(companyId);
-        const freshCustomer = fresh.customers.find((c) => c.id === created.id);
         finalCustomerId = created.id;
-        finalVehicleId = freshCustomer?.vehicles[0]?.id;
+        finalVehicleId = created.vehicleId;
       } else {
         if (!customerId || !vehicleId) {
           setError("Selecione o cliente e o veículo.");
