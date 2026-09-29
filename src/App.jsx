@@ -8,6 +8,7 @@ import MfaChallenge from "./MfaChallenge.jsx";
 import SubscriptionGate from "./SubscriptionGate.jsx";
 import * as db from "./lib/db";
 import { setSentryUser } from "./sentry.js";
+import { cacheGet, cacheSet, clearOfflineData, getIdentity, isNetworkError, setIdentity } from "./lib/offline";
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = carregando, null = deslogado
@@ -18,14 +19,44 @@ export default function App() {
   const [subscription, setSubscription] = useState(undefined); // undefined = carregando, null = n/a (ex: admin sem empresa)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+    // Sessão local. Se o token venceu e não há internet, entra com a identidade salva
+    // (só para ler os dados em cache; qualquer chamada ao servidor continua exigindo rede).
+    const loadSession = async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (data.session) {
+        setIdentity(data.session.user);
+        setSession(data.session);
+        return;
+      }
+      const ident = getIdentity();
+      if (ident && (navigator.onLine === false || isNetworkError(error))) {
+        setSession({ user: { id: ident.id, email: ident.email }, offline: true });
+        return;
+      }
+      setSession(null);
+    };
+    loadSession();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (event === "PASSWORD_RECOVERY") {
         setPasswordRecovery(true);
       }
-      setSession(session);
+      if (newSession?.user) {
+        setIdentity(newSession.user);
+        setSession(newSession);
+        return;
+      }
+      // Sem sessão por falta de internet (não é logout de verdade): mantém o modo offline
+      if (event !== "SIGNED_OUT" && getIdentity() && navigator.onLine === false) return;
+      setSession(newSession);
     });
-    return () => listener.subscription.unsubscribe();
+
+    // Voltou a internet: tenta recuperar a sessão real
+    window.addEventListener("online", loadSession);
+    return () => {
+      listener.subscription.unsubscribe();
+      window.removeEventListener("online", loadSession);
+    };
   }, []);
 
   useEffect(() => {
@@ -44,12 +75,21 @@ export default function App() {
         return;
       }
       setCheckingMfa(true);
-      const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-      setNeedsMfa(data?.currentLevel === "aal1" && data?.nextLevel === "aal2");
+      try {
+        const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        if (error) throw error;
+        const needs = data?.currentLevel === "aal1" && data?.nextLevel === "aal2";
+        setNeedsMfa(needs);
+        await cacheSet("mfa-ok", !needs);
+      } catch (err) {
+        // Sem internet: só dispensa o 2FA se ele já foi confirmado antes neste aparelho
+        const cached = await cacheGet("mfa-ok");
+        setNeedsMfa(!(cached?.value === true));
+      }
       setCheckingMfa(false);
     })();
   }, [session]);
- 
+
   // Verifica o status da assinatura da empresa assim que o usuário loga
   useEffect(() => {
     (async () => {
@@ -61,6 +101,17 @@ export default function App() {
       setSubscription(result); // null quando o usuário não tem empresa (ex: admin de plataforma)
     })();
   }, [session]);
+
+  // Logout apaga a cópia offline deste aparelho (dados de cada empresa ficam isolados)
+  const handleLogout = async () => {
+    await clearOfflineData();
+    try {
+      await supabase.auth.signOut({ scope: navigator.onLine === false ? "local" : "global" });
+    } catch {
+      // segue: a sessão local é descartada abaixo
+    }
+    setSession(null);
+  };
 
   if (passwordRecovery) {
     return (
@@ -98,7 +149,7 @@ export default function App() {
   }
 
   if (needsMfa) {
-    return <MfaChallenge onVerified={() => setNeedsMfa(false)} onLogout={() => supabase.auth.signOut()} />;
+    return <MfaChallenge onVerified={() => setNeedsMfa(false)} onLogout={handleLogout} />;
   }
 
   // Ainda buscando o status da assinatura
@@ -106,11 +157,27 @@ export default function App() {
     return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-500">Carregando...</div>;
   }
 
+  // Ficou tempo demais sem internet para confirmar a assinatura
+  if (subscription?.__offlineExpired) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center gap-3 text-center px-4">
+        <p className="font-medium">Conecte-se à internet</p>
+        <p className="text-sm text-zinc-400 max-w-sm">
+          Faz alguns dias que o app não consegue confirmar sua assinatura. Conecte-se à internet para continuar.
+        </p>
+        <button onClick={() => window.location.reload()} className="mt-2 bg-zinc-600 hover:bg-zinc-500 text-white text-sm font-medium px-4 py-2.5 rounded-xl">
+          Tentar novamente
+        </button>
+        <button onClick={handleLogout} className="text-xs text-zinc-400 mt-1">Sair</button>
+      </div>
+    );
+  }
+
   // Bloqueia se trial acabou, pagamento atrasou ou foi cancelado
   const statusBloqueado = ["expirada", "atrasada", "cancelada"].includes(subscription?.status);
   if (statusBloqueado) {
-    return <SubscriptionGate status={subscription.status} onLogout={() => supabase.auth.signOut()} />;
+    return <SubscriptionGate status={subscription.status} onLogout={handleLogout} />;
   }
 
-  return <LavaJaApp onLogout={() => supabase.auth.signOut()} />;
+  return <LavaJaApp onLogout={handleLogout} />;
 }
