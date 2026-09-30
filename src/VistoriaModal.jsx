@@ -296,7 +296,7 @@ export function VistoriaModal({ data, companyId, myUserId, order, refetch, close
       await avancarParaLavagem();
     } catch (err) {
       console.error(err);
-      setErro("Não deu pra salvar a vistoria. Tente de novo.");
+      setErro("Não deu pra salvar a vistoria: " + (err?.message || "erro desconhecido"));
     } finally {
       setSaving(false);
     }
@@ -316,7 +316,7 @@ export function VistoriaModal({ data, companyId, myUserId, order, refetch, close
       await avancarParaLavagem();
     } catch (err) {
       console.error(err);
-      setErro("Não deu pra pular agora. Tente de novo.");
+      setErro("Não deu pra pular agora: " + (err?.message || "erro desconhecido"));
     } finally {
       setSaving(false);
     }
