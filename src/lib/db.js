@@ -4,7 +4,8 @@ import {
   cacheSet,
   getCurrentUserId,
   isNetworkError,
-  withTimeout,
+  markNetDown,
+  netCall,
   NET_TIMEOUT_MS,
   NET_TIMEOUT_LONG_MS,
   SUBSCRIPTION_GRACE_MS,
@@ -27,10 +28,7 @@ export async function getMyProfile() {
   const uid = await getCurrentUserId();
   if (!uid) return null;
   try {
-    const { data, error } = await withTimeout(
-      supabase.from("profiles").select("company_id, role, full_name, blocked").eq("id", uid).single(),
-      NET_TIMEOUT_MS
-    );
+    const { data, error } = await netCall(() => supabase.from("profiles").select("company_id, role, full_name, blocked").eq("id", uid).single(), NET_TIMEOUT_MS);
     if (error) throw error;
     await cacheSet("profile", data);
     return data;
@@ -46,10 +44,7 @@ export async function getMyProfile() {
 // Dados da empresa (nome e limites) — com cópia offline
 export async function getCompanyInfo(companyId) {
   try {
-    const { data, error } = await withTimeout(
-      supabase.from("companies").select("name, loyalty_threshold, overdue_days_threshold").eq("id", companyId).single(),
-      NET_TIMEOUT_MS
-    );
+    const { data, error } = await netCall(() => supabase.from("companies").select("name, loyalty_threshold, overdue_days_threshold").eq("id", companyId).single(), NET_TIMEOUT_MS);
     if (error) throw error;
     await cacheSet(`company:${companyId}`, data);
     return data;
@@ -86,8 +81,7 @@ function emptyData() {
 
 export async function fetchAll(companyId) {
   try {
-    const results = await withTimeout(
-      Promise.all([
+    const results = await netCall(() => Promise.all([
         supabase.from("customers").select("*").eq("company_id", companyId).order("name"),
         supabase.from("vehicles").select("*").eq("company_id", companyId),
         supabase.from("services").select("*").eq("company_id", companyId).order("name"),
@@ -98,13 +92,14 @@ export async function fetchAll(companyId) {
         supabase.from("profiles").select("id, full_name, role, commission_rate, blocked").eq("company_id", companyId).order("full_name"),
         supabase.from("service_category_prices").select("*").eq("company_id", companyId),
         supabase.from("vehicle_inspections").select("*").eq("company_id", companyId).order("created_at", { ascending: false }),
-      ]),
-      NET_TIMEOUT_LONG_MS
-    );
+      ]), NET_TIMEOUT_LONG_MS);
 
     // Falha de rede em qualquer tabela → usa a cópia salva (não mistura dado velho com novo)
     const netFail = results.find((r) => r.error && isNetworkError(r.error));
-    if (netFail) throw netFail.error;
+    if (netFail) {
+      markNetDown();
+      throw netFail.error;
+    }
 
     const [customersRes, vehiclesRes, servicesRes, ordersRes, expensesRes, productsRes, serviceProductsRes, teamRes, categoryPricesRes, inspectionsRes] = results;
 
@@ -544,7 +539,7 @@ export async function updateOrderServices(order, updates, serviceProducts) {
 // ---- Administração da plataforma (multi-empresa) ----
 export async function checkIsPlatformAdmin() {
   try {
-    const { data, error } = await withTimeout(supabase.rpc("is_platform_admin"), NET_TIMEOUT_MS);
+    const { data, error } = await netCall(() => supabase.rpc("is_platform_admin"), NET_TIMEOUT_MS);
     if (error) throw error;
     await cacheSet("is-admin", !!data);
     return !!data;
@@ -619,7 +614,7 @@ export async function exportCompanyBackup(companyId) {
 
 export async function getMySubscription() {
   try {
-    const { data, error } = await withTimeout(supabase.rpc("my_subscription_status"), NET_TIMEOUT_MS);
+    const { data, error } = await netCall(() => supabase.rpc("my_subscription_status"), NET_TIMEOUT_MS);
     if (error) throw error;
     const result = data?.[0] || null;
     await cacheSet("subscription", result);
