@@ -14,11 +14,11 @@
 import React from "react";
 import { supabase } from "../supabaseClient";
 import { reportError } from "../sentry.js";
-import { cacheDel, cacheGet, cacheSet, isNetworkError, withTimeout } from "./offline";
+import { cacheDel, cacheGet, cacheSet, isNetworkError, netCall, shouldSkipNetwork, withTimeout } from "./offline";
 
 const QUEUE_KEY = "queue";
 const FAILED_KEY = "queue-failed";
-const OP_TIMEOUT_MS = 15000;
+const OP_TIMEOUT_MS = 10000;
 const UPLOAD_TIMEOUT_MS = 60000;
 const SYNC_INTERVAL_MS = 15000;
 
@@ -119,10 +119,10 @@ function isAlreadyExists(error) {
 // Insere uma linha. Se a coluna id da tabela não for uuid (tabelas criadas à mão no Supabase),
 // tenta de novo sem enviar o id e deixa o banco gerar.
 async function insertRow(table, row) {
-  let { error } = await withTimeout(supabase.from(table).insert(row), OP_TIMEOUT_MS);
+  let { error } = await netCall(() => supabase.from(table).insert(row), OP_TIMEOUT_MS);
   if (error && row.id && (error.code === "22P02" || /invalid input syntax/i.test(String(error.message || "")))) {
     const { id, ...semId } = row; // eslint-disable-line no-unused-vars
-    ({ error } = await withTimeout(supabase.from(table).insert(semId), OP_TIMEOUT_MS));
+    ({ error } = await netCall(() => supabase.from(table).insert(semId), OP_TIMEOUT_MS));
   }
   if (error && error.code !== "23505") throw error; // 23505 = já existe (envio repetido)
 }
@@ -135,7 +135,7 @@ async function execute(op, files) {
   }
   if (op.type === "update") {
     if (!TABLES.includes(op.table)) throw new Error("Tabela não permitida: " + op.table);
-    const { error } = await withTimeout(supabase.from(op.table).update(op.patch).eq("id", op.id), OP_TIMEOUT_MS);
+    const { error } = await netCall(() => supabase.from(op.table).update(op.patch).eq("id", op.id), OP_TIMEOUT_MS);
     if (error) throw error;
     return;
   }
@@ -143,12 +143,12 @@ async function execute(op, files) {
     const args = { p_product_id: op.productId, p_type: op.moveType, p_quantity: op.quantity, p_note: op.note || null };
     if (op.opId) {
       // Versão que ignora envio repetido (precisa do SQL schema_estoque_idempotente.sql)
-      const { error } = await withTimeout(supabase.rpc("adjust_stock_idempotent", { p_op_id: op.opId, ...args }), OP_TIMEOUT_MS);
+      const { error } = await netCall(() => supabase.rpc("adjust_stock_idempotent", { p_op_id: op.opId, ...args }), OP_TIMEOUT_MS);
       // PGRST202 / 42883 = função ainda não existe no banco → usa a antiga
       if (!error) return;
       if (error.code !== "PGRST202" && error.code !== "42883") throw error;
     }
-    const { error } = await withTimeout(supabase.rpc("adjust_stock", args), OP_TIMEOUT_MS);
+    const { error } = await netCall(() => supabase.rpc("adjust_stock", args), OP_TIMEOUT_MS);
     if (error) throw error;
     return;
   }
@@ -160,10 +160,7 @@ async function execute(op, files) {
       if (!blob) throw new Error("Foto da vistoria não encontrada no aparelho");
       const ext = op.photoExts?.[i] || "jpg";
       const path = `${op.row.company_id}/${op.row.order_id || "sem-pedido"}/${op.id}-${i}.${ext}`;
-      const { error } = await withTimeout(
-        supabase.storage.from("vistorias").upload(path, blob, { contentType: blob.type || "image/jpeg" }),
-        UPLOAD_TIMEOUT_MS
-      );
+      const { error } = await netCall(() => supabase.storage.from("vistorias").upload(path, blob, { contentType: blob.type || "image/jpeg" }), UPLOAD_TIMEOUT_MS);
       if (error && !isAlreadyExists(error)) throw error; // já existe = envio repetido, ok
       paths.push(path);
     }
@@ -182,7 +179,7 @@ export async function mutate(op, extra = {}) {
     const queue = await getQueue();
     // Vistoria com fotos: sempre guarda no aparelho primeiro e sobe em segundo plano (salva na hora)
     const forceQueue = op.type === "inspection" && files.length > 0;
-    if (!forceQueue && queue.length === 0 && navigator.onLine !== false) {
+    if (!forceQueue && queue.length === 0 && !shouldSkipNetwork()) {
       try {
         await execute(op, files);
         return false;
@@ -217,14 +214,14 @@ function syncSoon() {
 }
 
 export async function syncNow() {
-  if (syncing || navigator.onLine === false) return;
+  if (syncing || shouldSkipNetwork()) return;
   syncing = true;
   setStatus({ syncing: true });
   let sentAny = false;
   try {
     // tenta renovar a sessão antes de enviar (o token pode ter vencido offline)
     try {
-      await withTimeout(supabase.auth.getSession(), 8000);
+      await withTimeout(supabase.auth.getSession(), 4000);
     } catch {
       // segue: se falhar, o envio abaixo tenta de novo depois
     }
