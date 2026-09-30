@@ -1,7 +1,7 @@
 const CACHE_NAME = "detalhapro-v3";
 const ASSETS_TO_CACHE = ["/", "/manifest.json", "/logo.png"];
 // Com conexão ruim, espera pouco pela rede antes de usar a cópia salva
-const NETWORK_TIMEOUT_MS = 4000;
+const NETWORK_TIMEOUT_MS = 2500;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
