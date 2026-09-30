@@ -12,8 +12,8 @@ const STORE = "kv";
 const IDENTITY_KEY = "detalhapro-last-user";
 
 // Tempo máximo esperando a rede antes de usar a cópia salva (conexão ruim)
-export const NET_TIMEOUT_MS = 8000;
-export const NET_TIMEOUT_LONG_MS = 15000;
+export const NET_TIMEOUT_MS = 4000;
+export const NET_TIMEOUT_LONG_MS = 8000;
 
 // Quantos dias o app aceita o último status de assinatura salvo, sem internet
 export const SUBSCRIPTION_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
@@ -40,6 +40,44 @@ export function withTimeout(promise, ms = NET_TIMEOUT_MS) {
     timer = setTimeout(() => reject(new Error("timeout")), ms);
   });
   return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timer));
+}
+
+// ---------- "Rede fora do ar": aprende com as falhas para não esperar timeout toda hora ----------
+// Depois de uma falha de rede, as próximas chamadas nem tentam a rede por alguns segundos
+// e vão direto para a cópia salva / fila. Quando a internet volta (evento "online") ou passa
+// o prazo, tenta de novo (com espera curta).
+const NET_RETRY_AFTER_MS = 10000;
+const NET_RETEST_TIMEOUT_MS = 3000;
+let netDownSince = 0;
+
+export function shouldSkipNetwork() {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+  return netDownSince > 0 && Date.now() - netDownSince < NET_RETRY_AFTER_MS;
+}
+export function markNetUp() {
+  netDownSince = 0;
+}
+export function markNetDown() {
+  netDownSince = Date.now();
+}
+if (typeof window !== "undefined" && window.addEventListener) {
+  window.addEventListener("online", markNetUp);
+}
+
+// Faz uma chamada de rede com limite de tempo. Recebe uma FUNÇÃO (a chamada só começa se a rede
+// estiver liberada), e lança erro de rede na hora quando já sabemos que está fora do ar.
+export async function netCall(fn, ms = NET_TIMEOUT_MS) {
+  if (shouldSkipNetwork()) throw new Error("Failed to fetch (sem conexão)");
+  const limit = netDownSince > 0 && ms <= 15000 ? Math.min(ms, NET_RETEST_TIMEOUT_MS) : ms;
+  try {
+    const result = await withTimeout(fn(), limit);
+    if (result && !Array.isArray(result) && result.error && isNetworkError(result.error)) markNetDown();
+    else markNetUp();
+    return result;
+  } catch (err) {
+    if (isNetworkError(err)) markNetDown();
+    throw err;
+  }
 }
 
 // ---------- IndexedDB simples (chave → valor) ----------
