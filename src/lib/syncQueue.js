@@ -116,11 +116,21 @@ function isAlreadyExists(error) {
   return String(error?.statusCode) === "409" || /already exists|duplicate/i.test(String(error?.message || ""));
 }
 
+// Insere uma linha. Se a coluna id da tabela não for uuid (tabelas criadas à mão no Supabase),
+// tenta de novo sem enviar o id e deixa o banco gerar.
+async function insertRow(table, row) {
+  let { error } = await withTimeout(supabase.from(table).insert(row), OP_TIMEOUT_MS);
+  if (error && row.id && (error.code === "22P02" || /invalid input syntax/i.test(String(error.message || "")))) {
+    const { id, ...semId } = row; // eslint-disable-line no-unused-vars
+    ({ error } = await withTimeout(supabase.from(table).insert(semId), OP_TIMEOUT_MS));
+  }
+  if (error && error.code !== "23505") throw error; // 23505 = já existe (envio repetido)
+}
+
 async function execute(op, files) {
   if (op.type === "insert") {
     if (!TABLES.includes(op.table)) throw new Error("Tabela não permitida: " + op.table);
-    const { error } = await withTimeout(supabase.from(op.table).insert(op.row), OP_TIMEOUT_MS);
-    if (error && error.code !== "23505") throw error; // 23505 = já existe (envio repetido)
+    await insertRow(op.table, op.row);
     return;
   }
   if (op.type === "update") {
@@ -157,11 +167,7 @@ async function execute(op, files) {
       if (error && !isAlreadyExists(error)) throw error; // já existe = envio repetido, ok
       paths.push(path);
     }
-    const { error } = await withTimeout(
-      supabase.from("vehicle_inspections").insert({ ...op.row, photo_urls: paths }),
-      OP_TIMEOUT_MS
-    );
-    if (error && error.code !== "23505") throw error;
+    await insertRow("vehicle_inspections", { ...op.row, photo_urls: paths });
     return;
   }
   throw new Error("Operação desconhecida: " + op.type);
