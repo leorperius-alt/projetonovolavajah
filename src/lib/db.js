@@ -131,10 +131,20 @@ export async function fetchAll(companyId) {
       vehicleInspections: inspectionsRes.data || [],
     };
 
-    // Só guarda a cópia quando tudo veio sem erro (nunca sobrescreve com dado incompleto)
-    if (!results.some((r) => r.error)) {
-      await cacheSet(`data:${companyId}`, fresh);
+    // Guarda a cópia sempre. Se alguma tabela deu erro (que não seja de rede), essa parte
+    // mantém o que já estava salvo antes, em vez de impedir todo o cache.
+    let toCache = fresh;
+    if (results.some((r) => r.error)) {
+      const prev = (await cacheGet(`data:${companyId}`))?.value;
+      const keyOf = ["customers", "customers", "services", "orders", "expenses", "products", "serviceProducts", "team", "categoryPrices", "vehicleInspections"];
+      toCache = { ...fresh };
+      results.forEach((r, i) => {
+        if (r.error && prev) {
+          toCache[keyOf[i]] = prev[keyOf[i]] || [];
+        }
+      });
     }
+    await cacheSet(`data:${companyId}`, toCache);
     // Alterações feitas offline que ainda não subiram continuam aparecendo na tela
     return applyQueue(fresh, await getQueue());
   } catch (err) {
@@ -461,7 +471,7 @@ export async function deleteProduct(id) {
 }
 
 export async function registerMovement(productId, type, quantity, note) {
-  await mutate({ type: "stock", productId, moveType: type, quantity, note: note || null });
+  await mutate({ type: "stock", opId: newId(), productId, moveType: type, quantity, note: note || null });
 }
 
 export async function fetchMovements(productId) {
