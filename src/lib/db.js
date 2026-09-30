@@ -336,23 +336,24 @@ export async function getInspectionPhotoSignedUrls(urlsOrPaths, expiresInSeconds
   return results.map((r) => r.data?.signedUrl).filter(Boolean);
 }
 
-export async function saveVehicleInspection(companyId, { orderId, vehicleId, userId, status, marks, observations, photoUrls }) {
-  const { data, error } = await supabase
-    .from("vehicle_inspections")
-    .insert({
-      company_id: companyId,
-      order_id: orderId || null,
-      vehicle_id: vehicleId || null,
-      created_by: userId || null,
-      status: status || "realizada",
-      marks: marks || [],
-      observations: observations || null,
-      photo_urls: photoUrls || [],
-    })
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+// Salva a vistoria. As fotos (photoFiles) ficam guardadas no aparelho e sobem em segundo plano,
+// então funciona mesmo sem internet. A vistoria "pulada" não tem fotos.
+export async function saveVehicleInspection(companyId, { orderId, vehicleId, userId, status, marks, observations, photoFiles }) {
+  const files = photoFiles || [];
+  const id = newId();
+  const row = {
+    id,
+    company_id: companyId,
+    order_id: orderId || null,
+    vehicle_id: vehicleId || null,
+    created_by: userId || null,
+    status: status || "realizada",
+    marks: marks || [],
+    observations: observations || null,
+  };
+  const photoExts = files.map((f) => ((f.name || "").split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg");
+  await mutate({ type: "inspection", id, row, photoCount: files.length, photoExts }, { files });
+  return row;
 }
 
 export const INSPECTION_MARK_TYPES = [

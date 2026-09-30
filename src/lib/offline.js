@@ -72,6 +72,16 @@ async function idbSet(key, value) {
   });
 }
 
+async function idbDelete(key) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 async function idbClear() {
   const db = await openDb();
   return new Promise((resolve, reject) => {
@@ -108,13 +118,28 @@ export function setIdentity(user) {
 
 // ---------- Cache (escopo = usuário atual) ----------
 
-export async function cacheSet(key, value) {
+// strict = true: em vez de ignorar a falha, avisa (usar para dados que não podem ser perdidos, como fotos)
+export async function cacheSet(key, value, { strict = false } = {}) {
+  const ident = getIdentity();
+  if (!ident) {
+    if (strict) throw new Error("Sem usuário identificado neste aparelho");
+    return;
+  }
+  try {
+    await idbSet(`${ident.id}:${key}`, { value, savedAt: Date.now() });
+  } catch (err) {
+    if (strict) throw err;
+    // falha ao gravar o cache nunca deve quebrar o app
+  }
+}
+
+export async function cacheDel(key) {
   const ident = getIdentity();
   if (!ident) return;
   try {
-    await idbSet(`${ident.id}:${key}`, { value, savedAt: Date.now() });
+    await idbDelete(`${ident.id}:${key}`);
   } catch {
-    // falha ao gravar o cache nunca deve quebrar o app
+    // ignora
   }
 }
 

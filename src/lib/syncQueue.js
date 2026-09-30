@@ -14,11 +14,12 @@
 import React from "react";
 import { supabase } from "../supabaseClient";
 import { reportError } from "../sentry.js";
-import { cacheGet, cacheSet, isNetworkError, withTimeout } from "./offline";
+import { cacheDel, cacheGet, cacheSet, isNetworkError, withTimeout } from "./offline";
 
 const QUEUE_KEY = "queue";
 const FAILED_KEY = "queue-failed";
 const OP_TIMEOUT_MS = 15000;
+const UPLOAD_TIMEOUT_MS = 60000;
 const SYNC_INTERVAL_MS = 15000;
 
 // Só estas tabelas podem ser alteradas pela fila
@@ -111,7 +112,11 @@ function isAuthError(err) {
   return err?.code === "PGRST301" || err?.status === 401 || msg.includes("jwt");
 }
 
-async function execute(op) {
+function isAlreadyExists(error) {
+  return String(error?.statusCode) === "409" || /already exists|duplicate/i.test(String(error?.message || ""));
+}
+
+async function execute(op, files) {
   if (op.type === "insert") {
     if (!TABLES.includes(op.table)) throw new Error("Tabela não permitida: " + op.table);
     const { error } = await withTimeout(supabase.from(op.table).insert(op.row), OP_TIMEOUT_MS);
@@ -125,16 +130,38 @@ async function execute(op) {
     return;
   }
   if (op.type === "stock") {
+    const args = { p_product_id: op.productId, p_type: op.moveType, p_quantity: op.quantity, p_note: op.note || null };
+    if (op.opId) {
+      // Versão que ignora envio repetido (precisa do SQL schema_estoque_idempotente.sql)
+      const { error } = await withTimeout(supabase.rpc("adjust_stock_idempotent", { p_op_id: op.opId, ...args }), OP_TIMEOUT_MS);
+      // PGRST202 / 42883 = função ainda não existe no banco → usa a antiga
+      if (!error) return;
+      if (error.code !== "PGRST202" && error.code !== "42883") throw error;
+    }
+    const { error } = await withTimeout(supabase.rpc("adjust_stock", args), OP_TIMEOUT_MS);
+    if (error) throw error;
+    return;
+  }
+  if (op.type === "inspection") {
+    // 1) sobe as fotos (do aparelho); 2) grava a vistoria com os caminhos das fotos
+    const paths = [];
+    for (let i = 0; i < (op.photoCount || 0); i++) {
+      const blob = files ? files[i] : (await cacheGet(`photo:${op.id}:${i}`))?.value;
+      if (!blob) throw new Error("Foto da vistoria não encontrada no aparelho");
+      const ext = op.photoExts?.[i] || "jpg";
+      const path = `${op.row.company_id}/${op.row.order_id || "sem-pedido"}/${op.id}-${i}.${ext}`;
+      const { error } = await withTimeout(
+        supabase.storage.from("vistorias").upload(path, blob, { contentType: blob.type || "image/jpeg" }),
+        UPLOAD_TIMEOUT_MS
+      );
+      if (error && !isAlreadyExists(error)) throw error; // já existe = envio repetido, ok
+      paths.push(path);
+    }
     const { error } = await withTimeout(
-      supabase.rpc("adjust_stock", {
-        p_product_id: op.productId,
-        p_type: op.moveType,
-        p_quantity: op.quantity,
-        p_note: op.note || null,
-      }),
+      supabase.from("vehicle_inspections").insert({ ...op.row, photo_urls: paths }),
       OP_TIMEOUT_MS
     );
-    if (error) throw error;
+    if (error && error.code !== "23505") throw error;
     return;
   }
   throw new Error("Operação desconhecida: " + op.type);
@@ -143,15 +170,24 @@ async function execute(op) {
 // ---------- Uso pelo db.js ----------
 
 // Tenta enviar na hora; se estiver sem internet (ou a fila já tiver itens), guarda na fila.
-export async function mutate(op) {
+export async function mutate(op, extra = {}) {
+  const files = extra.files || [];
   const queued = await withLock(async () => {
     const queue = await getQueue();
-    if (queue.length === 0 && navigator.onLine !== false) {
+    // Vistoria com fotos: sempre guarda no aparelho primeiro e sobe em segundo plano (salva na hora)
+    const forceQueue = op.type === "inspection" && files.length > 0;
+    if (!forceQueue && queue.length === 0 && navigator.onLine !== false) {
       try {
-        await execute(op);
+        await execute(op, files);
         return false;
       } catch (err) {
         if (!(isNetworkError(err) || isAuthError(err))) throw err; // erro real: quem chamou trata
+      }
+    }
+    if (op.type === "inspection") {
+      // Se não conseguir guardar as fotos no aparelho, avisa (não pode perder foto em silêncio)
+      for (let i = 0; i < files.length; i++) {
+        await cacheSet(`photo:${op.id}:${i}`, files[i], { strict: true });
       }
     }
     await saveQueue([...queue, { ...op, qid: newId(), at: Date.now() }]);
@@ -207,6 +243,9 @@ export async function syncNow() {
         const current = await getQueue();
         await saveQueue(current.filter((o) => o.qid !== op.qid));
       });
+      if (op.type === "inspection") {
+        for (let i = 0; i < (op.photoCount || 0); i++) await cacheDel(`photo:${op.id}:${i}`);
+      }
       sentAny = true;
     }
   } finally {
@@ -267,6 +306,10 @@ export function applyQueue(data, queue) {
       else if (op.table === "customers") d.customers = mergeById(d.customers, op.id, op.patch);
       else if (op.table === "vehicles") {
         d.customers = d.customers.map((c) => ({ ...c, vehicles: mergeById(c.vehicles, op.id, op.patch) }));
+      }
+    } else if (op.type === "inspection") {
+      if (!d.vehicleInspections.some((i) => i.id === op.row.id)) {
+        d.vehicleInspections = [{ created_at: createdAt, photo_urls: [], ...op.row, pending: true }, ...d.vehicleInspections];
       }
     } else if (op.type === "stock") {
       const sign = op.moveType === "entrada" ? 1 : -1;
