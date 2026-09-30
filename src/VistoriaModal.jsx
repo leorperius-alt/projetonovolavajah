@@ -284,11 +284,6 @@ export function VistoriaModal({ data, companyId, myUserId, order, refetch, close
     setSaving(true);
     setErro("");
     try {
-      const photoUrls = [];
-      for (const p of photos) {
-        const url = await db.uploadInspectionPhoto(companyId, order.id, p.file);
-        photoUrls.push(url);
-      }
       await db.saveVehicleInspection(companyId, {
         orderId: order.id,
         vehicleId: order.vehicle_id,
@@ -296,12 +291,12 @@ export function VistoriaModal({ data, companyId, myUserId, order, refetch, close
         status: "realizada",
         marks,
         observations,
-        photoUrls,
+        photoFiles: photos.map((p) => p.file),
       });
       await avancarParaLavagem();
     } catch (err) {
       console.error(err);
-      setErro("Não deu pra salvar a vistoria. Confira sua internet e tente de novo.");
+      setErro("Não deu pra salvar a vistoria. Tente de novo.");
     } finally {
       setSaving(false);
     }
