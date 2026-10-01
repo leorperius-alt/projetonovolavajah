@@ -17,7 +17,11 @@ import { VistoriaModal, VistoriaViewModal } from "./VistoriaModal.jsx";
 
 const genLocalId = () => Math.random().toString(36).slice(2, 9);
 const money = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const localDateStr = (d = new Date()) => {
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+const todayStr = () => localDateStr();
 const dateTimeStr = (iso) => new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
 const waLink = (phone, message) => {
@@ -49,7 +53,11 @@ const formatPlate = (raw) => {
   const p = normalizePlate(raw);
   return p.length === 7 ? `${p.slice(0, 3)}-${p.slice(3)}` : p;
 };
-const dateStrOf = (iso) => (iso ? iso.slice(0, 10) : "");
+const dateStrOf = (iso) => {
+  if (!iso) return "";
+  if (iso.length === 10) return iso; // já é data pura (ex.: expense_date)
+  return localDateStr(new Date(iso));
+};
 const timeAgo = (iso) => {
   const mins = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
   if (mins < 1) return "agora";
@@ -412,7 +420,7 @@ function DashboardView({ data, setTab, onSelectDay, overdueDaysThreshold }) {
   const hoje = todayStr();
   const ontemDate = new Date();
   ontemDate.setDate(ontemDate.getDate() - 1);
-  const ontem = ontemDate.toISOString().slice(0, 10);
+  const ontem = localDateStr(ontemDate);
   const mesAtual = hoje.slice(0, 7); // YYYY-MM
 
   const entregues = data.orders.filter((o) => o.status === "entregue");
@@ -445,7 +453,7 @@ function DashboardView({ data, setTab, onSelectDay, overdueDaysThreshold }) {
   const dias = Array.from({ length: 14 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (13 - i));
-    const iso = d.toISOString().slice(0, 10);
+    const iso = localDateStr(d);
     const total = entregues.filter((o) => o.paid && dateStrOf(o.created_at) === iso).reduce((s, o) => s + o.total, 0);
     return { iso, total, label: d.toLocaleDateString("pt-BR", { day: "2-digit" }) };
   });
@@ -1593,7 +1601,7 @@ function RelatoriosView({ data, initialDate, onConsumedInitialDate, setModal }) 
     if (initialDate) return initialDate;
     const d = new Date();
     d.setDate(d.getDate() - 30);
-    return d.toISOString().slice(0, 10);
+    return localDateStr(d);
   });
   const [end, setEnd] = useState(() => initialDate || todayStr());
   const [servicoSelecionado, setServicoSelecionado] = useState(null);
@@ -2143,7 +2151,7 @@ function ComissoesView({ data }) {
   const [start, setStart] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 30);
-    return d.toISOString().slice(0, 10);
+    return localDateStr(d);
   });
   const [end, setEnd] = useState(todayStr());
 
