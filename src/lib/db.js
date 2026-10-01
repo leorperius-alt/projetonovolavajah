@@ -12,6 +12,11 @@ import {
 } from "./offline";
 import { applyQueue, getQueue, mutate, newId } from "./syncQueue";
 
+const localDateStr = (d = new Date()) => {
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+
 export async function getMyCompanyId() {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth?.user) return null;
@@ -439,7 +444,7 @@ export async function createExpense(companyId, { description, amount, expense_da
       company_id: companyId,
       description,
       amount,
-      expense_date: expense_date || new Date().toISOString().slice(0, 10),
+      expense_date: expense_date || localDateStr(),
     },
   });
 }
