@@ -2137,13 +2137,17 @@ function VincularProdutosModal({ data, companyId, refetch, close, servico }) {
 
         {data.products.length > 0 && (
           <div className="flex gap-2">
-            <select value={productId} onChange={(e) => setProductId(e.target.value)} className="input flex-1">
-              <option value="">Selecione um produto</option>
-              {data.products.map((p) => (
-                <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>
-              ))}
-            </select>
-            <input value={quantity} onChange={(e) => setQuantity(e.target.value)} type="number" step="any" className="input w-20" />
+            <div className="flex-1 min-w-0">
+              <select value={productId} onChange={(e) => setProductId(e.target.value)} className="input">
+                <option value="">Selecione um produto</option>
+                {data.products.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>
+                ))}
+              </select>
+            </div>
+            <div className="w-24 shrink-0">
+              <input value={quantity} onChange={(e) => setQuantity(e.target.value)} type="number" step="any" className="input" />
+            </div>
             <button onClick={add} className="shrink-0 bg-zinc-600 hover:bg-zinc-500 text-white rounded-lg px-3">
               <Plus size={16} />
             </button>
@@ -2446,13 +2450,17 @@ function EditarPedidoModal({ data, refetch, close, order }) {
           <p className="text-xs text-[var(--text-muted)]">Nenhum produto cadastrado no Estoque ainda.</p>
         ) : (
           <div className="flex gap-2">
-            <select value={pickedProductId} onChange={(e) => setPickedProductId(e.target.value)} className="input flex-1">
-              <option value="">Selecione um produto</option>
-              {data.products.map((p) => (
-                <option key={p.id} value={p.id}>{p.name} ({p.unit}) — {p.quantity} em estoque</option>
-              ))}
-            </select>
-            <input value={pickedQuantity} onChange={(e) => setPickedQuantity(e.target.value)} type="number" step="any" className="input w-20" />
+            <div className="flex-1 min-w-0">
+              <select value={pickedProductId} onChange={(e) => setPickedProductId(e.target.value)} className="input">
+                <option value="">Selecione um produto</option>
+                {data.products.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.unit}) — {p.quantity} em estoque</option>
+                ))}
+              </select>
+            </div>
+            <div className="w-24 shrink-0">
+              <input value={pickedQuantity} onChange={(e) => setPickedQuantity(e.target.value)} type="number" step="any" className="input" />
+            </div>
             <button onClick={addExtraProduct} type="button" className="shrink-0 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg px-3">
               <Plus size={16} />
             </button>
@@ -3385,13 +3393,17 @@ function NovoPedidoModal({ data, companyId, refetch, close, mode, myUserId }) {
           <p className="text-xs text-[var(--text-muted)]">Nenhum produto cadastrado no Estoque ainda.</p>
         ) : (
           <div className="flex gap-2">
-            <select value={pickedProductId} onChange={(e) => setPickedProductId(e.target.value)} className="input flex-1">
-              <option value="">Selecione um produto</option>
-              {data.products.map((p) => (
-                <option key={p.id} value={p.id}>{p.name} ({p.unit}) — {p.quantity} em estoque</option>
-              ))}
-            </select>
-            <input value={pickedQuantity} onChange={(e) => setPickedQuantity(e.target.value)} type="number" step="any" className="input w-20" />
+            <div className="flex-1 min-w-0">
+              <select value={pickedProductId} onChange={(e) => setPickedProductId(e.target.value)} className="input">
+                <option value="">Selecione um produto</option>
+                {data.products.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.unit}) — {p.quantity} em estoque</option>
+                ))}
+              </select>
+            </div>
+            <div className="w-24 shrink-0">
+              <input value={pickedQuantity} onChange={(e) => setPickedQuantity(e.target.value)} type="number" step="any" className="input" />
+            </div>
             <button onClick={addExtraProduct} type="button" className="shrink-0 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg px-3">
               <Plus size={16} />
             </button>
