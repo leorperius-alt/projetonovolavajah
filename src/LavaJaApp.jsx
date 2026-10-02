@@ -2577,8 +2577,12 @@ function AdminView() {
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-5">
         <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2">Criar nova empresa</p>
         <div className="flex flex-col sm:flex-row gap-2">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da empresa (ex: Lava-rápido do João)" className="flex-1 input" />
-          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-mail do dono (opcional)" className="sm:w-64 input" />
+          <div className="flex-1 min-w-0">
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da empresa (ex: Lava-rápido do João)" className="input" />
+          </div>
+          <div className="min-w-0 sm:w-72 sm:shrink-0">
+            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-mail do dono (opcional)" className="input" />
+          </div>
           <button onClick={criar} disabled={saving} className="flex items-center justify-center gap-1.5 bg-zinc-600 hover:bg-zinc-500 disabled:opacity-60 text-white text-sm font-medium px-4 py-2.5 rounded-lg shrink-0">
             <Plus size={15} /> {saving ? "Criando..." : "Criar e gerar convite"}
           </button>
