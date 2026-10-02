@@ -5,7 +5,7 @@ import {
   TrendingDown, FileBarChart, Download, ChevronRight, ShieldOff, ShieldCheck, UserX,
   Package, ArrowDownCircle, ArrowUpCircle, History, AlertTriangle, MessageCircle, Percent,
   Edit2, XCircle, LayoutDashboard, ArrowUp, ArrowDown, Minus, CreditCard, FileText, Crown,
-  ClipboardList, QrCode,
+  ClipboardList, QrCode, BarChart3, MoreHorizontal,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./lib/db";
@@ -71,6 +71,8 @@ export default function LavaJaApp({ onLogout }) {
   const [loyaltyThreshold, setLoyaltyThreshold] = useState(10);
   const [overdueDaysThreshold, setOverdueDaysThreshold] = useState(7);
   const [relatoriosInitialDate, setRelatoriosInitialDate] = useState(null);
+  const [finSub, setFinSub] = useState("financeiro"); // sub-aba da tela Financeiro: "financeiro" | "relatorios"
+  const [maisOpen, setMaisOpen] = useState(false); // menu "Mais" da barra inferior (celular)
   const [myRole, setMyRole] = useState(null);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [myUserId, setMyUserId] = useState(null);
@@ -324,14 +326,17 @@ export default function LavaJaApp({ onLogout }) {
                 setTimeout(() => document.getElementById(secId)?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
               };
               if (t === "estoque") return goTo("servicos", "sec-estoque");
-              if (t === "financeiro") return goTo("financeiro", "sec-financeiro");
+              if (t === "financeiro") {
+                setFinSub("financeiro");
+                return goTo("financeiro", "sec-topo");
+              }
               setTab(t);
             }}
             overdueDaysThreshold={overdueDaysThreshold}
             onSelectDay={(iso) => {
               setRelatoriosInitialDate(iso);
+              setFinSub("relatorios");
               setTab("financeiro");
-              setTimeout(() => document.getElementById("sec-relatorios")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
             }}
           />
         )}
@@ -360,7 +365,22 @@ export default function LavaJaApp({ onLogout }) {
         )}
         {activeTab === "financeiro" && isOwner && (
           <div>
-            <section id="sec-financeiro">
+            <div id="sec-topo" className="px-4 md:px-6 pt-4 md:pt-6">
+              <div className="flex gap-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-1 w-full md:w-auto md:inline-flex">
+                {[{ k: "financeiro", l: "Financeiro", icon: Wallet }, { k: "relatorios", l: "Relatórios", icon: BarChart3 }].map((o) => (
+                  <button
+                    key={o.k}
+                    onClick={() => setFinSub(o.k)}
+                    className={`flex-1 md:flex-none flex items-center justify-center gap-2 text-sm font-medium px-5 py-2.5 rounded-lg transition ${
+                      finSub === o.k ? "bg-[#d4af6a] text-[#2e3138]" : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+                    }`}
+                  >
+                    <o.icon size={16} /> {o.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {finSub === "financeiro" ? (
               <FinanceiroView
                 data={data}
                 companyId={companyId}
@@ -369,10 +389,9 @@ export default function LavaJaApp({ onLogout }) {
                 overdueDaysThreshold={overdueDaysThreshold}
                 setOverdueDaysThreshold={setOverdueDaysThreshold}
               />
-            </section>
-            <section id="sec-relatorios" className="border-t border-[var(--border)]">
+            ) : (
               <RelatoriosView data={data} initialDate={relatoriosInitialDate} onConsumedInitialDate={() => setRelatoriosInitialDate(null)} setModal={setModal} />
-            </section>
+            )}
           </div>
         )}
         {activeTab === "comissoes" && isOwner && <ComissoesView data={data} />}
@@ -381,18 +400,49 @@ export default function LavaJaApp({ onLogout }) {
         {activeTab === "admin" && isPlatformAdmin && <AdminView />}
       </div>
 
-      <div className="md:hidden fixed bottom-0 inset-x-0 bg-zinc-800 border-t border-zinc-700 flex overflow-x-auto gap-1 px-1 py-2 z-30">
-        {NAV.map((n) => (
-          <button
-            key={n.id}
-            onClick={() => setTab(n.id)}
-            className={`shrink-0 min-w-[72px] flex flex-col items-center gap-1 px-2 py-2 rounded-lg text-[12px] font-medium ${activeTab === n.id ? "text-zinc-100 bg-zinc-700" : "text-zinc-400"}`}
-          >
-            <n.icon size={24} />
-            {n.label}
-          </button>
-        ))}
-      </div>
+      {(() => {
+        const PREFERRED = ["dashboard", "fila", "agenda", "clientes"];
+        const ordered = [...NAV.filter((n) => PREFERRED.includes(n.id)), ...NAV.filter((n) => !PREFERRED.includes(n.id))];
+        const useMais = NAV.length > 5;
+        const primary = useMais ? ordered.slice(0, 4) : NAV;
+        const extra = useMais ? ordered.slice(4) : [];
+        const extraActive = extra.some((n) => n.id === activeTab);
+        const itemCls = (on) => `flex-1 min-w-0 flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-lg text-[11px] font-medium ${on ? "text-[#d4af6a] bg-zinc-700/70" : "text-zinc-400"}`;
+        return (
+          <>
+            {maisOpen && (
+              <div className="md:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMaisOpen(false)}>
+                <div className="absolute bottom-[72px] inset-x-2 bg-zinc-800 border border-zinc-700 rounded-2xl p-3 grid grid-cols-3 gap-2" onClick={(e) => e.stopPropagation()}>
+                  {extra.map((n) => (
+                    <button
+                      key={n.id}
+                      onClick={() => { setTab(n.id); setMaisOpen(false); }}
+                      className={`flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl text-xs font-medium text-center ${activeTab === n.id ? "text-[#d4af6a] bg-zinc-700/70" : "text-zinc-300"}`}
+                    >
+                      <n.icon size={22} />
+                      {n.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="md:hidden fixed bottom-0 inset-x-0 bg-zinc-800 border-t border-zinc-700 flex gap-1 px-2 py-1.5 z-50">
+              {primary.map((n) => (
+                <button key={n.id} onClick={() => { setTab(n.id); setMaisOpen(false); }} className={itemCls(activeTab === n.id && !maisOpen)}>
+                  <n.icon size={22} />
+                  <span className="truncate max-w-full">{n.label}</span>
+                </button>
+              ))}
+              {useMais && (
+                <button onClick={() => setMaisOpen((v) => !v)} className={itemCls(maisOpen || extraActive)}>
+                  <MoreHorizontal size={22} />
+                  <span>Mais</span>
+                </button>
+              )}
+            </div>
+          </>
+        );
+      })()}
 
       {modal && <ModalRouter modal={modal} setModal={setModal} data={data} companyId={companyId} refetch={refetch} myUserId={myUserId} companyName={companyName} setTab={setTab} />}
     </div>
