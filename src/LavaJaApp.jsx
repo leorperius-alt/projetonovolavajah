@@ -71,6 +71,7 @@ export default function LavaJaApp({ onLogout }) {
   const [loyaltyThreshold, setLoyaltyThreshold] = useState(10);
   const [overdueDaysThreshold, setOverdueDaysThreshold] = useState(7);
   const [relatoriosInitialDate, setRelatoriosInitialDate] = useState(null);
+  const [svcSub, setSvcSub] = useState("servicos"); // sub-aba da tela Serviços e Estoque: "servicos" | "estoque"
   const [finSub, setFinSub] = useState("financeiro"); // sub-aba da tela Financeiro: "financeiro" | "relatorios"
   const [maisOpen, setMaisOpen] = useState(false); // menu "Mais" da barra inferior (celular)
   const [myRole, setMyRole] = useState(null);
@@ -325,7 +326,10 @@ export default function LavaJaApp({ onLogout }) {
                 setTab(tabId);
                 setTimeout(() => document.getElementById(secId)?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
               };
-              if (t === "estoque") return goTo("servicos", "sec-estoque");
+              if (t === "estoque") {
+                setSvcSub("estoque");
+                return goTo("servicos", "sec-topo-svc");
+              }
               if (t === "financeiro") {
                 setFinSub("financeiro");
                 return goTo("financeiro", "sec-topo");
@@ -355,31 +359,27 @@ export default function LavaJaApp({ onLogout }) {
         )}
         {activeTab === "servicos" && (
           <div>
-            <section id="sec-servicos">
+            <SubTabs
+              id="sec-topo-svc"
+              value={svcSub}
+              onChange={setSvcSub}
+              tabs={[{ k: "servicos", l: "Serviços", icon: Wrench }, { k: "estoque", l: "Estoque", icon: Package }]}
+            />
+            {svcSub === "servicos" ? (
               <ServicosView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />
-            </section>
-            <section id="sec-estoque" className="border-t border-[var(--border)]">
+            ) : (
               <EstoqueView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />
-            </section>
+            )}
           </div>
         )}
         {activeTab === "financeiro" && isOwner && (
           <div>
-            <div id="sec-topo" className="px-4 md:px-6 pt-4 md:pt-6">
-              <div className="flex gap-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-1 w-full md:w-auto md:inline-flex">
-                {[{ k: "financeiro", l: "Financeiro", icon: Wallet }, { k: "relatorios", l: "Relatórios", icon: BarChart3 }].map((o) => (
-                  <button
-                    key={o.k}
-                    onClick={() => setFinSub(o.k)}
-                    className={`flex-1 md:flex-none flex items-center justify-center gap-2 text-sm font-medium px-5 py-2.5 rounded-lg transition ${
-                      finSub === o.k ? "bg-[#d4af6a] text-[#2e3138]" : "text-[var(--text-secondary)] hover:text-[var(--text)]"
-                    }`}
-                  >
-                    <o.icon size={16} /> {o.l}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <SubTabs
+              id="sec-topo"
+              value={finSub}
+              onChange={setFinSub}
+              tabs={[{ k: "financeiro", l: "Financeiro", icon: Wallet }, { k: "relatorios", l: "Relatórios", icon: BarChart3 }]}
+            />
             {finSub === "financeiro" ? (
               <FinanceiroView
                 data={data}
@@ -445,6 +445,27 @@ export default function LavaJaApp({ onLogout }) {
       })()}
 
       {modal && <ModalRouter modal={modal} setModal={setModal} data={data} companyId={companyId} refetch={refetch} myUserId={myUserId} companyName={companyName} setTab={setTab} />}
+    </div>
+  );
+}
+
+// Seletor de sub-abas (usado em Financeiro/Relatórios e Serviços/Estoque)
+function SubTabs({ value, onChange, tabs, id }) {
+  return (
+    <div id={id} className="px-4 md:px-6 pt-4 md:pt-6">
+      <div className="flex gap-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-1 w-full md:w-auto md:inline-flex">
+        {tabs.map((o) => (
+          <button
+            key={o.k}
+            onClick={() => onChange(o.k)}
+            className={`flex-1 md:flex-none flex items-center justify-center gap-2 text-sm font-medium px-4 md:px-5 py-2.5 rounded-lg transition ${
+              value === o.k ? "bg-[#d4af6a] text-[#2e3138]" : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+            }`}
+          >
+            <o.icon size={16} /> {o.l}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -525,46 +546,65 @@ function DashboardView({ data, setTab, onSelectDay, overdueDaysThreshold }) {
 
   return (
     <div className="p-4 md:p-6">
-      <h1 className="font-display text-xl font-semibold mb-1">Dashboard</h1>
-      <p className="text-sm text-[var(--text-secondary)] mb-5">Visão geral do negócio</p>
+      <h1 className="font-display text-xl font-semibold mb-4 md:mb-1">Dashboard</h1>
+      <p className="hidden md:block text-sm text-[var(--text-secondary)] mb-5">Visão geral do negócio</p>
+
+      {(vencidas.length > 0 || produtosBaixoEstoque.length > 0) && (
+        <div className="flex flex-col gap-2 mb-5">
+          {vencidas.length > 0 && (
+            <button onClick={() => setTab("financeiro")} className="w-full text-left flex items-center gap-2 bg-rose-950/60 border border-rose-800 rounded-xl px-3 py-2.5">
+              <AlertTriangle size={16} className="text-rose-400 shrink-0" />
+              <span className="text-sm text-rose-300">{vencidas.length} cobrança(s) vencida(s) — {money(totalVencido)}</span>
+              <ChevronRight size={16} className="ml-auto text-rose-400 shrink-0" />
+            </button>
+          )}
+          {produtosBaixoEstoque.length > 0 && (
+            <button onClick={() => setTab("estoque")} className="w-full text-left flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2.5">
+              <AlertTriangle size={16} className="text-amber-400 shrink-0" />
+              <span className="text-sm text-amber-300">{produtosBaixoEstoque.length} produto(s) com estoque baixo</span>
+              <ChevronRight size={16} className="ml-auto text-amber-400 shrink-0" />
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 sm:p-4">
           <p className="text-xs text-[var(--text-secondary)] mb-1">Faturado hoje</p>
-          <p className="font-num text-xl font-semibold text-[var(--text)]">{money(pagosHoje)}</p>
+          <p className="font-num text-lg sm:text-xl font-semibold text-[var(--text)]">{money(pagosHoje)}</p>
           <p className={`text-xs mt-1 flex items-center gap-1 ${variacao > 0 ? "text-emerald-400" : variacao < 0 ? "text-rose-400" : "text-[var(--text-muted)]"}`}>
             {variacao > 0 ? <ArrowUp size={12} /> : variacao < 0 ? <ArrowDown size={12} /> : <Minus size={12} />}
             {Math.abs(variacao).toFixed(0)}% vs ontem
           </p>
         </div>
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 sm:p-4">
           <p className="text-xs text-[var(--text-secondary)] mb-1">Lavagens hoje</p>
-          <p className="font-num text-xl font-semibold text-[var(--text)]">{lavagensHoje}</p>
+          <p className="font-num text-lg sm:text-xl font-semibold text-[var(--text)]">{lavagensHoje}</p>
           <p className="text-xs text-[var(--text-muted)] mt-1">Ticket médio {money(ticketMedioHoje)}</p>
         </div>
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 sm:p-4">
           <p className="text-xs text-[var(--text-secondary)] mb-1">A receber</p>
-          <p className="font-num text-xl font-semibold text-amber-400">{money(aReceber)}</p>
-          <p className="text-xs text-[var(--text-muted)] mt-1">Lavagens entregues e não pagas</p>
+          <p className="font-num text-lg sm:text-xl font-semibold text-amber-400">{money(aReceber)}</p>
+          <p className="hidden sm:block text-xs text-[var(--text-muted)] mt-1">Lavagens entregues e não pagas</p>
         </div>
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 sm:p-4">
           <p className="text-xs text-[var(--text-secondary)] mb-1">Lucro líquido no mês</p>
-          <p className={`font-num text-xl font-semibold ${lucroMes >= 0 ? "text-[var(--text)]" : "text-rose-400"}`}>{money(lucroMes)}</p>
-          <p className="text-xs text-[var(--text-muted)] mt-1">Faturado {money(faturadoMes)} · Despesas {money(despesasMes)}</p>
+          <p className={`font-num text-lg sm:text-xl font-semibold ${lucroMes >= 0 ? "text-[var(--text)]" : "text-rose-400"}`}>{money(lucroMes)}</p>
+          <p className="hidden sm:block text-xs text-[var(--text-muted)] mt-1">Faturado {money(faturadoMes)} · Despesas {money(despesasMes)}</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <div className="lg:col-span-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-          <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-1">Faturamento — últimos 14 dias</p>
+          <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-1">Faturamento — últimos <span className="sm:hidden">7</span><span className="hidden sm:inline">14</span> dias</p>
           <p className="text-[11px] text-[var(--text-muted)] mb-3">Valores em R$ · toque num dia pra ver o relatório dele</p>
           <div className="flex items-stretch gap-1.5 h-40">
-            {dias.map((d) => (
+            {dias.map((d, i) => (
               <button
                 key={d.iso}
                 onClick={() => onSelectDay(d.iso)}
                 title={`Ver relatório de ${d.label}: ${money(d.total)}`}
-                className="flex-1 h-full flex flex-col items-center justify-end gap-1 rounded-lg hover:bg-[var(--bg)] transition-colors py-1"
+                className={`flex-1 h-full ${i < 7 ? "hidden sm:flex" : "flex"} flex-col items-center justify-end gap-1 rounded-lg hover:bg-[var(--bg)] transition-colors py-1`}
               >
                 <span className="text-[9px] sm:text-[10px] font-num text-[var(--text-secondary)] leading-none whitespace-nowrap">
                   {d.total > 0 ? Math.round(d.total) : ""}
@@ -604,47 +644,16 @@ function DashboardView({ data, setTab, onSelectDay, overdueDaysThreshold }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-          <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-3">Top serviços do mês</p>
-          {topServicos.length === 0 && <p className="text-sm text-[var(--text-muted)]">Nenhuma lavagem concluída neste mês ainda</p>}
-          <div className="flex flex-col gap-2">
-            {topServicos.map(([nome, qtd]) => (
-              <div key={nome} className="flex items-center justify-between text-sm">
-                <span className="text-[var(--text)]">{nome}</span>
-                <span className="font-num text-[var(--text-secondary)]">{qtd}x</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-          <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-3">Estoque</p>
-          {produtosBaixoEstoque.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">Nenhum produto com estoque baixo 👍</p>
-          ) : (
-            <button onClick={() => setTab("estoque")} className="w-full text-left">
-              <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle size={15} className="text-amber-400 shrink-0" />
-                <p className="text-sm text-amber-300">{produtosBaixoEstoque.length} produto(s) com estoque baixo</p>
-              </div>
-              <p className="text-xs text-[var(--text-secondary)]">{produtosBaixoEstoque.map((p) => p.name).join(", ")}</p>
-            </button>
-          )}
-        </div>
-
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 md:col-span-2">
-          <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-3">Cobranças "a faturar" vencidas</p>
-          {vencidas.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">Nenhuma cobrança vencida 👍</p>
-          ) : (
-            <button onClick={() => setTab("financeiro")} className="w-full text-left">
-              <div className="flex items-center gap-2">
-                <AlertTriangle size={15} className="text-rose-400 shrink-0" />
-                <p className="text-sm text-rose-300">{vencidas.length} cobrança(s) vencida(s) — {money(totalVencido)} em atraso</p>
-              </div>
-            </button>
-          )}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+        <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-3">Top serviços do mês</p>
+        {topServicos.length === 0 && <p className="text-sm text-[var(--text-muted)]">Nenhuma lavagem concluída neste mês ainda</p>}
+        <div className="flex flex-col gap-2">
+          {topServicos.map(([nome, qtd]) => (
+            <div key={nome} className="flex items-center justify-between text-sm">
+              <span className="text-[var(--text)]">{nome}</span>
+              <span className="font-num text-[var(--text-secondary)]">{qtd}x</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -652,6 +661,7 @@ function DashboardView({ data, setTab, onSelectDay, overdueDaysThreshold }) {
 }
 
 function FilaView({ data, companyId, myUserId, companyName, refetch, setModal }) {
+  const [colMobile, setColMobile] = useState("aguardando"); // no celular mostra uma coluna por vez
   const active = data.orders.filter((o) => ["aguardando", "lavando", "pronto"].includes(o.status));
   const advance = async (order, status) => {
     await db.updateOrderStatus(order.id, status);
@@ -683,12 +693,30 @@ function FilaView({ data, companyId, myUserId, companyName, refetch, setModal })
         </button>
       </div>
 
+      <div className="md:hidden flex gap-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-1 mb-4">
+        {columns.map((col) => {
+          const n = active.filter((o) => o.status === col.key).length;
+          return (
+            <button
+              key={col.key}
+              onClick={() => setColMobile(col.key)}
+              className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-medium py-2.5 rounded-lg transition ${
+                colMobile === col.key ? "bg-[#d4af6a] text-[#2e3138]" : "text-[var(--text-secondary)]"
+              }`}
+            >
+              {col.title}
+              <span className={`font-num text-xs px-1.5 rounded-full ${colMobile === col.key ? "bg-[#2e3138]/15" : "bg-[var(--bg)]"}`}>{n}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {columns.map((col) => {
           const items = active.filter((o) => o.status === col.key);
           return (
-            <div key={col.key} className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-3">
-              <div className="flex items-center gap-2 mb-3 px-1">
+            <div key={col.key} className={`${colMobile === col.key ? "block" : "hidden"} md:block bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-3`}>
+              <div className="hidden md:flex items-center gap-2 mb-3 px-1">
                 <col.icon size={16} className="text-[var(--text-secondary)]" />
                 <span className="text-sm font-semibold text-[var(--text-secondary)]">{col.title}</span>
                 <span className="ml-auto text-xs font-num text-[var(--text-secondary)]">{items.length}</span>
