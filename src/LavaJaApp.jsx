@@ -71,7 +71,6 @@ export default function LavaJaApp({ onLogout }) {
   const [loyaltyThreshold, setLoyaltyThreshold] = useState(10);
   const [overdueDaysThreshold, setOverdueDaysThreshold] = useState(7);
   const [relatoriosInitialDate, setRelatoriosInitialDate] = useState(null);
-  const [svcSub, setSvcSub] = useState("servicos"); // sub-aba da tela Serviços e Estoque: "servicos" | "estoque"
   const [finSub, setFinSub] = useState("financeiro"); // sub-aba da tela Financeiro: "financeiro" | "relatorios"
   const [maisOpen, setMaisOpen] = useState(false); // menu "Mais" da barra inferior (celular)
   const [myRole, setMyRole] = useState(null);
@@ -214,7 +213,7 @@ export default function LavaJaApp({ onLogout }) {
     { id: "fila", label: "Fila", icon: Car },
     { id: "agenda", label: "Agenda", icon: CalendarClock },
     { id: "clientes", label: "Clientes", icon: Users },
-    { id: "servicos", label: "Serviços e Estoque", icon: Wrench },
+    { id: "servicos", label: "Serviços", icon: Wrench },
     { id: "financeiro", label: "Financeiro", icon: Wallet, ownerOnly: true },
     { id: "comissoes", label: "Comissões", icon: Percent, ownerOnly: true },
     { id: "equipe", label: "Equipe", icon: UserPlus, ownerOnly: true },
@@ -326,10 +325,7 @@ export default function LavaJaApp({ onLogout }) {
                 setTab(tabId);
                 setTimeout(() => document.getElementById(secId)?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
               };
-              if (t === "estoque") {
-                setSvcSub("estoque");
-                return goTo("servicos", "sec-topo-svc");
-              }
+              if (t === "estoque") return goTo("servicos", "sec-topo-svc");
               if (t === "financeiro") {
                 setFinSub("financeiro");
                 return goTo("financeiro", "sec-topo");
@@ -358,18 +354,8 @@ export default function LavaJaApp({ onLogout }) {
           />
         )}
         {activeTab === "servicos" && (
-          <div>
-            <SubTabs
-              id="sec-topo-svc"
-              value={svcSub}
-              onChange={setSvcSub}
-              tabs={[{ k: "servicos", l: "Serviços", icon: Wrench }, { k: "estoque", l: "Estoque", icon: Package }]}
-            />
-            {svcSub === "servicos" ? (
-              <ServicosView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />
-            ) : (
-              <EstoqueView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />
-            )}
+          <div id="sec-topo-svc">
+            <ServicosView data={data} companyId={companyId} refetch={refetch} setModal={setModal} />
           </div>
         )}
         {activeTab === "financeiro" && isOwner && (
@@ -449,7 +435,7 @@ export default function LavaJaApp({ onLogout }) {
   );
 }
 
-// Seletor de sub-abas (usado em Financeiro/Relatórios e Serviços/Estoque)
+// Seletor de sub-abas (usado em Financeiro/Relatórios)
 function SubTabs({ value, onChange, tabs, id }) {
   return (
     <div id={id} className="px-4 md:px-6 pt-4 md:pt-6">
@@ -1396,86 +1382,164 @@ function HistoricoClienteModal({ data, customer, close, setModal }) {
 }
 
 function ServicosView({ data, companyId, refetch, setModal }) {
-  const [name, setName] = useState("");
-  const [price, setPrice] = useState("");
+  const [filtro, setFiltro] = useState("todos"); // todos | servico | produto | insumo
 
-  const add = async () => {
-    if (!name.trim() || !price) return;
-    await db.createService(companyId, { name: name.trim(), price: Number(price) });
-    setName("");
-    setPrice("");
-    refetch();
-  };
+  const produtosPorId = Object.fromEntries((data.products || []).map((p) => [p.id, p]));
+  const idsComDono = new Set((data.services || []).filter((s) => s.product_id).map((s) => s.product_id));
+  // insumos = produtos de estoque que não pertencem a nenhum serviço/produto à venda (ex: shampoo, cera)
+  const insumos = (data.products || []).filter((p) => !idsComDono.has(p.id));
 
-  const remove = async (id) => {
-    await db.deleteService(id);
-    refetch();
+  const itens = [
+    ...(data.services || []).map((s) => ({ tipo: s.kind === "produto" ? "produto" : "servico", s, p: s.product_id ? produtosPorId[s.product_id] : null })),
+    ...insumos.map((p) => ({ tipo: "insumo", s: null, p })),
+  ].sort((a, b) => (a.s?.name || a.p.name).localeCompare(b.s?.name || b.p.name));
+
+  const baixo = (p) => p && Number(p.quantity) <= Number(p.min_quantity);
+  const baixoEstoque = itens.filter((i) => baixo(i.p));
+  const contagem = {
+    todos: itens.length,
+    servico: itens.filter((i) => i.tipo === "servico").length,
+    produto: itens.filter((i) => i.tipo === "produto").length,
+    insumo: itens.filter((i) => i.tipo === "insumo").length,
   };
+  const visiveis = itens.filter((i) => filtro === "todos" || i.tipo === filtro);
 
   const updatePrice = async (id, value) => {
     await db.updateServicePrice(id, Number(value) || 0);
     refetch();
   };
 
+  const remove = async (item) => {
+    const nome = item.s?.name || item.p.name;
+    const msg = item.p ? `Remover "${nome}"? O estoque e o histórico dele também serão apagados.` : `Remover "${nome}"?`;
+    if (!window.confirm(msg)) return;
+    if (item.s) await db.deleteServiceWithStock(item.s);
+    else await db.deleteProduct(item.p.id);
+    refetch();
+  };
+
+  const chips = [
+    { k: "todos", l: "Todos" },
+    { k: "servico", l: "Serviços" },
+    { k: "produto", l: "Produtos" },
+    { k: "insumo", l: "Insumos" },
+  ];
+
   return (
     <div className="p-4 md:p-6">
-      <h1 className="font-display text-xl font-semibold mb-1">Serviços</h1>
-      <p className="text-sm text-[var(--text-secondary)] mb-5">{data.services.length} serviço(s) cadastrado(s)</p>
-
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-5 flex flex-col sm:flex-row gap-2">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do serviço" className="flex-1 px-3 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
-        <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" placeholder="Preço" className="w-full sm:w-32 px-3 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm font-num focus:outline-none focus:ring-2 focus:ring-zinc-400" />
-        <button onClick={add} className="flex items-center justify-center gap-1.5 bg-zinc-600 hover:bg-[var(--surface)] text-white text-sm font-medium px-4 py-2.5 rounded-lg">
-          <Plus size={15} /> Adicionar
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h1 className="font-display text-xl font-semibold">Serviços</h1>
+          <p className="text-sm text-[var(--text-secondary)]">{itens.length} item(ns) cadastrado(s)</p>
+        </div>
+        <button onClick={() => setModal({ type: "novoItem" })} className="flex items-center gap-1.5 bg-zinc-600 hover:bg-zinc-500 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-sm">
+          <Plus size={16} /> Novo item
         </button>
       </div>
 
+      <div className="flex gap-1.5 mb-4 overflow-x-auto">
+        {chips.map((c) => (
+          <button
+            key={c.k}
+            onClick={() => setFiltro(c.k)}
+            className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition ${
+              filtro === c.k ? "bg-[#d4af6a] text-[#2e3138] border-[#d4af6a]" : "border-[var(--border)] text-[var(--text-secondary)]"
+            }`}
+          >
+            {c.l} <span className="font-num opacity-70">{contagem[c.k]}</span>
+          </button>
+        ))}
+      </div>
+
+      {baixoEstoque.length > 0 && (
+        <div className="bg-amber-950 border border-amber-800 rounded-xl p-3 flex items-center gap-2 mb-4">
+          <AlertTriangle size={16} className="text-amber-400 shrink-0" />
+          <p className="text-sm text-amber-200">
+            {baixoEstoque.length} item(ns) com estoque baixo: {baixoEstoque.map((i) => i.s?.name || i.p.name).join(", ")}
+          </p>
+        </div>
+      )}
+
+      {visiveis.length === 0 && <div className="text-center py-16 text-[var(--text-muted)] text-sm">Nenhum item cadastrado ainda</div>}
+
       <div className="flex flex-col gap-2">
-        {data.services.map((s) => {
-          const vinculos = data.serviceProducts.filter((sp) => sp.service_id === s.id);
+        {visiveis.map((item) => {
+          const { s, p, tipo } = item;
+          const nome = s?.name || p.name;
+          const lowStock = baixo(p);
+          const vinculos = s ? data.serviceProducts.filter((sp) => sp.service_id === s.id && !sp.own) : [];
+          const precosCat = s ? data.categoryPrices.filter((cp) => cp.service_id === s.id) : [];
+          const Icone = tipo === "servico" ? Wrench : Package;
           return (
-            <div key={s.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 flex items-center gap-3">
-              <Wrench size={16} className="text-[var(--text-secondary)] shrink-0" />
-              <div className="flex-1 min-w-0">
-                <span className="text-sm font-medium">{s.name}</span>
-                {vinculos.length > 0 && (
-                  <p className="text-xs text-[var(--text-muted)] truncate">
-                    Consome: {vinculos.map((v) => {
-                      const p = data.products.find((pr) => pr.id === v.product_id);
-                      return p ? `${v.quantity} ${p.unit} de ${p.name}` : null;
-                    }).filter(Boolean).join(", ")}
-                  </p>
+            <div key={s ? `s-${s.id}` : `p-${p.id}`} className={`bg-[var(--surface)] border rounded-xl p-3 flex flex-col gap-2 ${lowStock ? "border-amber-800" : "border-[var(--border)]"}`}>
+              <div className="flex items-center gap-3">
+                <Icone size={16} className={`shrink-0 ${lowStock ? "text-amber-400" : "text-[var(--text-secondary)]"}`} />
+                <button
+                  onClick={() => p && setModal({ type: "historicoEstoque", produto: p })}
+                  disabled={!p}
+                  className="flex-1 min-w-0 text-left"
+                >
+                  <span className="text-sm font-medium block truncate">{nome}</span>
+                  <span className="text-xs text-[var(--text-muted)]">
+                    {tipo === "servico" ? "Serviço" : tipo === "produto" ? "Produto" : "Insumo · uso interno"}
+                    {p ? ` · mínimo ${p.min_quantity} ${p.unit}` : ""}
+                  </span>
+                </button>
+                {p && (
+                  <span className={`font-num text-sm font-semibold shrink-0 ${lowStock ? "text-amber-400" : "text-[var(--text)]"}`}>
+                    {p.quantity} {p.unit}
+                  </span>
                 )}
-                {data.categoryPrices.filter((cp) => cp.service_id === s.id).length > 0 && (
-                  <p className="text-xs text-[var(--text-muted)] truncate">
-                    {data.categoryPrices.filter((cp) => cp.service_id === s.id).map((cp) => {
-                      const label = db.VEHICLE_CATEGORIES.find((c) => c.value === cp.category)?.label;
-                      return `${label}: ${money(cp.price)}`;
-                    }).join(" · ")}
-                  </p>
+                {s && (
+                  <div className="flex items-center gap-1 font-num text-sm shrink-0">
+                    <span className="text-[var(--text-secondary)]">R$</span>
+                    <input defaultValue={s.price} onBlur={(e) => updatePrice(s.id, e.target.value)} type="number" className="w-20 px-2 py-1 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-right focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+                  </div>
                 )}
               </div>
-              <div className="flex items-center gap-1 font-num text-sm">
-                <span className="text-[var(--text-secondary)]">R$</span>
-                <input defaultValue={s.price} onBlur={(e) => updatePrice(s.id, e.target.value)} type="number" className="w-20 px-2 py-1 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-right focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+
+              {vinculos.length > 0 && (
+                <p className="text-xs text-[var(--text-muted)] truncate">
+                  Consome: {vinculos.map((v) => {
+                    const pr = produtosPorId[v.product_id];
+                    return pr ? `${v.quantity} ${pr.unit} de ${pr.name}` : null;
+                  }).filter(Boolean).join(", ")}
+                </p>
+              )}
+              {precosCat.length > 0 && (
+                <p className="text-xs text-[var(--text-muted)] truncate">
+                  {precosCat.map((cp) => `${db.VEHICLE_CATEGORIES.find((c) => c.value === cp.category)?.label}: ${money(cp.price)}`).join(" · ")}
+                </p>
+              )}
+
+              <div className="flex items-center gap-1 justify-end">
+                {p && (
+                  <>
+                    <button onClick={() => setModal({ type: "movimentoEstoque", produto: p, tipo: "entrada" })} title="Registrar entrada" className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100">
+                      <ArrowUpCircle size={15} />
+                    </button>
+                    <button onClick={() => setModal({ type: "movimentoEstoque", produto: p, tipo: "saida" })} title="Registrar saída" className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100">
+                      <ArrowDownCircle size={15} />
+                    </button>
+                  </>
+                )}
+                {s && tipo === "servico" && (
+                  <>
+                    <button onClick={() => setModal({ type: "vincularProdutos", servico: s })} title="Insumos que esse serviço consome" className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100">
+                      <Package size={15} />
+                    </button>
+                    <button onClick={() => setModal({ type: "precosPorCategoria", servico: s })} title="Preços por categoria de veículo" className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100">
+                      <Car size={15} />
+                    </button>
+                  </>
+                )}
+                <button onClick={() => setModal({ type: "editarItem", servico: s, produto: p })} title="Editar" className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100">
+                  <Edit2 size={15} />
+                </button>
+                <button onClick={() => remove(item)} title="Remover" className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-rose-400">
+                  <Trash2 size={17} />
+                </button>
               </div>
-              <button
-                onClick={() => setModal({ type: "vincularProdutos", servico: s })}
-                title="Vincular produtos do estoque"
-                className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
-              >
-                <Package size={15} />
-              </button>
-              <button
-                onClick={() => setModal({ type: "precosPorCategoria", servico: s })}
-                title="Preços por categoria de veículo"
-                className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
-              >
-                <Car size={15} />
-              </button>
-              <button onClick={() => remove(s.id)} className="text-[var(--text-muted)] hover:text-rose-400 p-1.5 -m-1.5">
-                <Trash2 size={18} />
-              </button>
             </div>
           );
         })}
@@ -1928,110 +1992,137 @@ function ServicoDetalheModal({ nome, info, onClose }) {
   );
 }
 
-function EstoqueView({ data, companyId, refetch, setModal }) {
-  const produtos = [...(data.products || [])].sort((a, b) => a.name.localeCompare(b.name));
-  const baixoEstoque = produtos.filter((p) => Number(p.quantity) <= Number(p.min_quantity));
-
-  const remove = async (p) => {
-    const ok = window.confirm(`Remover "${p.name}" do estoque?`);
-    if (!ok) return;
-    await db.deleteProduct(p.id);
-    refetch();
-  };
-
-  return (
-    <div className="p-4 md:p-6">
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h1 className="font-display text-xl font-semibold">Estoque</h1>
-          <p className="text-sm text-[var(--text-secondary)]">{produtos.length} produto(s) cadastrado(s)</p>
-        </div>
-        <button onClick={() => setModal({ type: "novoProduto" })} className="flex items-center gap-1.5 bg-zinc-600 hover:bg-zinc-500 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-sm">
-          <Plus size={16} /> Novo produto
-        </button>
-      </div>
-
-      {baixoEstoque.length > 0 && (
-        <div className="bg-amber-950 border border-amber-800 rounded-xl p-3 flex items-center gap-2 mb-5">
-          <AlertTriangle size={16} className="text-amber-400 shrink-0" />
-          <p className="text-sm text-amber-200">
-            {baixoEstoque.length} produto(s) com estoque baixo: {baixoEstoque.map((p) => p.name).join(", ")}
-          </p>
-        </div>
-      )}
-
-      {produtos.length === 0 && <div className="text-center py-16 text-[var(--text-muted)] text-sm">Nenhum produto cadastrado ainda</div>}
-
-      <div className="flex flex-col gap-2">
-        {produtos.map((p) => {
-          const baixo = Number(p.quantity) <= Number(p.min_quantity);
-          return (
-            <div key={p.id} className={`bg-[var(--surface)] border rounded-xl p-3 flex items-center gap-3 ${baixo ? "border-amber-800" : "border-[var(--border)]"}`}>
-              <Package size={18} className={`shrink-0 ${baixo ? "text-amber-400" : "text-[var(--text-muted)]"}`} />
-              <button onClick={() => setModal({ type: "historicoEstoque", produto: p })} className="flex-1 min-w-0 text-left">
-                <p className="text-sm font-medium truncate hover:underline">{p.name}</p>
-                <p className="text-xs text-[var(--text-muted)]">
-                  Mínimo: {p.min_quantity} {p.unit}
-                </p>
-              </button>
-              <span className={`font-num text-sm font-semibold shrink-0 ${baixo ? "text-amber-400" : "text-[var(--text)]"}`}>
-                {p.quantity} {p.unit}
-              </span>
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  onClick={() => setModal({ type: "movimentoEstoque", produto: p, tipo: "entrada" })}
-                  title="Registrar entrada"
-                  className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
-                >
-                  <ArrowUpCircle size={16} />
-                </button>
-                <button
-                  onClick={() => setModal({ type: "movimentoEstoque", produto: p, tipo: "saida" })}
-                  title="Registrar saída"
-                  className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
-                >
-                  <ArrowDownCircle size={16} />
-                </button>
-                <button onClick={() => remove(p)} title="Remover produto" className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-rose-400">
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function NovoProdutoModal({ companyId, refetch, close }) {
-  const [name, setName] = useState("");
-  const [unit, setUnit] = useState("un");
+// Cadastro/edição unificado: serviço, produto à venda ou insumo (uso interno) — estoque é opcional
+function ItemModal({ companyId, refetch, close, servico, produto }) {
+  const editando = !!(servico || produto);
+  const [tipo, setTipo] = useState(servico ? (servico.kind === "produto" ? "produto" : "servico") : produto ? "insumo" : "servico");
+  const [name, setName] = useState(servico?.name || produto?.name || "");
+  const [price, setPrice] = useState(servico ? String(servico.price ?? "") : "");
+  const temEstoqueAtual = !!produto;
+  const [controlar, setControlar] = useState(temEstoqueAtual);
+  const [unit, setUnit] = useState(produto?.unit || "un");
   const [quantity, setQuantity] = useState("");
-  const [minQuantity, setMinQuantity] = useState("");
+  const [minQuantity, setMinQuantity] = useState(produto ? String(produto.min_quantity ?? "") : "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const ehInsumo = tipo === "insumo";
+  const mostrarEstoque = ehInsumo || controlar;
+
+  const stockPayload = () => ({
+    unit: unit.trim() || "un",
+    quantity: Number(quantity) || 0,
+    min_quantity: Number(minQuantity) || 0,
+  });
 
   const save = async () => {
-    if (!name.trim()) return;
-    await db.createProduct(companyId, {
-      name: name.trim(),
-      unit: unit.trim() || "un",
-      quantity: Number(quantity) || 0,
-      min_quantity: Number(minQuantity) || 0,
-    });
-    refetch();
-    close();
+    if (!name.trim()) return setError("Informe o nome.");
+    if (!ehInsumo && price === "") return setError("Informe o preço.");
+    setSaving(true);
+    setError("");
+    try {
+      if (!editando) {
+        if (ehInsumo) await db.createProduct(companyId, { name: name.trim(), ...stockPayload() });
+        else await db.createService(companyId, { name: name.trim(), price: Number(price) || 0, kind: tipo, stock: controlar ? stockPayload() : null });
+      } else {
+        if (servico) {
+          await db.updateService(servico.id, { name: name.trim(), price: Number(price) || 0, kind: tipo });
+          if (produto) {
+            await db.updateProduct(produto.id, { name: name.trim(), unit: unit.trim() || "un", min_quantity: Number(minQuantity) || 0 });
+          } else if (controlar) {
+            await db.enableServiceStock(companyId, { ...servico, name: name.trim() }, stockPayload());
+          }
+        } else if (produto) {
+          await db.updateProduct(produto.id, { name: name.trim(), unit: unit.trim() || "un", min_quantity: Number(minQuantity) || 0 });
+        }
+      }
+      refetch();
+      close();
+    } catch (e) {
+      reportError(e, { where: "salvar item (serviço/produto/insumo)" });
+      setError("Não foi possível salvar: " + e.message);
+      setSaving(false);
+    }
   };
 
+  const pararEstoque = async () => {
+    if (!window.confirm("Parar de controlar o estoque desse item? A quantidade e o histórico serão apagados.")) return;
+    setSaving(true);
+    try {
+      await db.disableServiceStock(servico);
+      refetch();
+      close();
+    } catch (e) {
+      setError("Não foi possível alterar: " + e.message);
+      setSaving(false);
+    }
+  };
+
+  const tipos = [
+    { k: "servico", l: "Serviço" },
+    { k: "produto", l: "Produto" },
+    { k: "insumo", l: "Insumo" },
+  ];
+
   return (
-    <ModalShell title="Novo produto" onClose={close}>
+    <ModalShell title={editando ? "Editar item" : "Novo item"} onClose={close}>
       <div className="flex flex-col gap-3">
-        <Field label="Nome do produto"><input value={name} onChange={(e) => setName(e.target.value)} className="input" placeholder="Ex: Shampoo automotivo" /></Field>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="Unidade"><input value={unit} onChange={(e) => setUnit(e.target.value)} className="input" placeholder="un, L, kg..." /></Field>
-          <Field label="Quantidade inicial"><input value={quantity} onChange={(e) => setQuantity(e.target.value)} type="number" className="input" /></Field>
-        </div>
-        <Field label="Estoque mínimo (avisa quando chegar aqui)"><input value={minQuantity} onChange={(e) => setMinQuantity(e.target.value)} type="number" className="input" /></Field>
-        <button onClick={save} className="mt-2 bg-zinc-600 hover:bg-zinc-500 text-white font-medium text-sm py-3 rounded-xl">Salvar produto</button>
+        {!(editando && ehInsumo) && (
+          <div className="flex gap-1 bg-[var(--bg)] border border-[var(--border)] rounded-xl p-1">
+            {tipos.filter((t) => !editando || t.k !== "insumo").map((t) => (
+              <button
+                key={t.k}
+                onClick={() => setTipo(t.k)}
+                className={`flex-1 text-sm font-medium py-2 rounded-lg transition ${tipo === t.k ? "bg-[#d4af6a] text-[#2e3138]" : "text-[var(--text-secondary)]"}`}
+              >
+                {t.l}
+              </button>
+            ))}
+          </div>
+        )}
+        <p className="text-xs text-[var(--text-muted)]">
+          {tipo === "servico" && "Algo que você faz no carro (lavagem, polimento...). Pode ou não ter estoque próprio."}
+          {tipo === "produto" && "Algo que você vende (aromatizante, cera...). Normalmente com estoque."}
+          {tipo === "insumo" && "Material de uso interno (shampoo, pano...). Não é vendido; é consumido pelos serviços."}
+        </p>
+
+        <Field label="Nome"><input value={name} onChange={(e) => setName(e.target.value)} className="input" placeholder={ehInsumo ? "Ex: Shampoo automotivo" : "Ex: Lavagem completa"} /></Field>
+        {!ehInsumo && (
+          <Field label="Preço (R$)"><input value={price} onChange={(e) => setPrice(e.target.value)} type="number" className="input" /></Field>
+        )}
+
+        {!ehInsumo && (
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <input type="checkbox" checked={controlar} disabled={temEstoqueAtual} onChange={(e) => setControlar(e.target.checked)} className="w-4 h-4" />
+            Controlar estoque desse item
+          </label>
+        )}
+
+        {mostrarEstoque && (
+          <div className="flex flex-col gap-3 border border-[var(--border)] rounded-xl p-3">
+            {!ehInsumo && <p className="text-xs text-[var(--text-muted)]">Cada vez que esse item entrar num pedido, 1 unidade sai do estoque.</p>}
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Unidade"><input value={unit} onChange={(e) => setUnit(e.target.value)} className="input" placeholder="un, L, kg..." /></Field>
+              {!temEstoqueAtual && (
+                <Field label="Quantidade inicial"><input value={quantity} onChange={(e) => setQuantity(e.target.value)} type="number" className="input" /></Field>
+              )}
+            </div>
+            <Field label="Estoque mínimo (avisa quando chegar aqui)"><input value={minQuantity} onChange={(e) => setMinQuantity(e.target.value)} type="number" className="input" /></Field>
+            {temEstoqueAtual && (
+              <p className="text-xs text-[var(--text-muted)]">Estoque atual: {produto.quantity} {produto.unit}. Para ajustar, use os botões de entrada/saída.</p>
+            )}
+          </div>
+        )}
+
+        {error && <p className="text-xs text-rose-400">{error}</p>}
+        <button onClick={save} disabled={saving} className="mt-1 bg-zinc-600 hover:bg-zinc-500 disabled:opacity-60 text-white font-medium text-sm py-3 rounded-xl">
+          {saving ? "Salvando..." : "Salvar"}
+        </button>
+        {editando && servico && produto && (
+          <button onClick={pararEstoque} disabled={saving} className="text-xs text-[var(--text-secondary)] hover:text-rose-400 underline">
+            Parar de controlar estoque
+          </button>
+        )}
       </div>
     </ModalShell>
   );
@@ -2107,7 +2198,8 @@ function HistoricoEstoqueModal({ produto, close }) {
 function VincularProdutosModal({ data, companyId, refetch, close, servico }) {
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState("1");
-  const vinculos = data.serviceProducts.filter((sp) => sp.service_id === servico.id);
+  const vinculos = data.serviceProducts.filter((sp) => sp.service_id === servico.id && !sp.own);
+  const produtosDisponiveis = data.products.filter((p) => p.id !== servico.product_id);
 
   const add = async () => {
     if (!productId || !quantity) return;
@@ -2129,18 +2221,18 @@ function VincularProdutosModal({ data, companyId, refetch, close, servico }) {
           Toda vez que esse serviço for usado num carro da fila, os produtos abaixo são descontados do estoque automaticamente.
         </p>
 
-        {data.products.length === 0 && (
+        {produtosDisponiveis.length === 0 && (
           <p className="text-sm text-amber-300 bg-amber-950 border border-amber-800 rounded-lg p-3">
-            Você ainda não tem produtos cadastrados no Estoque. Cadastre lá primeiro pra poder vincular aqui.
+            Você ainda não tem insumos ou produtos com estoque. Cadastre um em "Novo item" pra poder vincular aqui.
           </p>
         )}
 
-        {data.products.length > 0 && (
+        {produtosDisponiveis.length > 0 && (
           <div className="flex gap-2">
             <div className="flex-1 min-w-0">
               <select value={productId} onChange={(e) => setProductId(e.target.value)} className="input">
                 <option value="">Selecione um produto</option>
-                {data.products.map((p) => (
+                {produtosDisponiveis.map((p) => (
                   <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>
                 ))}
               </select>
@@ -2928,7 +3020,8 @@ function ModalRouter({ modal, setModal, data, companyId, refetch, myUserId, comp
   if (modal.type === "novoVeiculo") return <NovoVeiculoModal data={data} companyId={companyId} refetch={refetch} close={close} customerId={modal.customerId} />;
   if (modal.type === "novoCarro") return <NovoPedidoModal data={data} companyId={companyId} refetch={refetch} close={close} mode="queue" myUserId={myUserId} />;
   if (modal.type === "novoAgendamento") return <NovoPedidoModal data={data} companyId={companyId} refetch={refetch} close={close} mode="schedule" myUserId={myUserId} />;
-  if (modal.type === "novoProduto") return <NovoProdutoModal companyId={companyId} refetch={refetch} close={close} />;
+  if (modal.type === "novoItem") return <ItemModal companyId={companyId} refetch={refetch} close={close} />;
+  if (modal.type === "editarItem") return <ItemModal companyId={companyId} refetch={refetch} close={close} servico={modal.servico} produto={modal.produto} />;
   if (modal.type === "movimentoEstoque") return <MovimentoEstoqueModal companyId={companyId} refetch={refetch} close={close} produto={modal.produto} tipo={modal.tipo} />;
   if (modal.type === "historicoEstoque") return <HistoricoEstoqueModal produto={modal.produto} close={close} />;
   if (modal.type === "vincularProdutos") return <VincularProdutosModal data={data} companyId={companyId} refetch={refetch} close={close} servico={modal.servico} />;
