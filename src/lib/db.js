@@ -125,7 +125,7 @@ export async function fetchAll(companyId) {
       orders: ordersRes.data || [],
       expenses: expensesRes.data || [],
       products: productsRes.data || [],
-      serviceProducts: serviceProductsRes.data || [],
+      serviceProducts: [...(serviceProductsRes.data || []), ...ownStockLinks(servicesRes.data)],
       team: teamRes.data || [],
       categoryPrices: categoryPricesRes.data || [],
       vehicleInspections: inspectionsRes.data || [],
@@ -217,9 +217,49 @@ export async function deleteVehicle(id) {
 }
 
 // ---- Serviços ----
-export async function createService(companyId, { name, price }) {
-  const { error } = await supabase.from("services").insert({ company_id: companyId, name, price });
+export async function createService(companyId, { name, price, kind, stock }) {
+  // stock (opcional): { unit, quantity, min_quantity } -> cria o controle de estoque junto com o item
+  let productId = null;
+  if (stock) productId = await createProduct(companyId, { name, ...stock });
+  const { error } = await supabase.from("services").insert({
+    company_id: companyId,
+    name,
+    price,
+    kind: kind || "servico",
+    product_id: productId,
+  });
   if (error) throw error;
+}
+
+export async function updateService(id, patch) {
+  const { error } = await supabase.from("services").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+// Liga o controle de estoque num serviço/produto que ainda não tinha
+export async function enableServiceStock(companyId, service, stock) {
+  const productId = await createProduct(companyId, { name: service.name, ...stock });
+  await updateService(service.id, { product_id: productId });
+}
+
+// Desliga o controle de estoque (apaga o estoque e o histórico desse item)
+export async function disableServiceStock(service) {
+  if (!service.product_id) return;
+  await updateService(service.id, { product_id: null });
+  await deleteProduct(service.product_id);
+}
+
+export async function deleteServiceWithStock(service) {
+  await deleteService(service.id);
+  if (service.product_id) await deleteProduct(service.product_id);
+}
+
+// Cada item com estoque próprio desconta 1 unidade a cada venda.
+// Vira um "vínculo virtual" para reaproveitar toda a lógica de baixa/estorno que já existe.
+export function ownStockLinks(services) {
+  return (services || [])
+    .filter((s) => s.product_id)
+    .map((s) => ({ id: `own-${s.id}`, own: true, service_id: s.id, product_id: s.product_id, quantity: 1 }));
 }
 
 export async function updateServicePrice(id, price) {
@@ -456,13 +496,19 @@ export async function deleteExpense(id) {
 
 // ---- Estoque ----
 export async function createProduct(companyId, { name, unit, quantity, min_quantity }) {
-  const { error } = await supabase.from("products").insert({
+  const { data, error } = await supabase.from("products").insert({
     company_id: companyId,
     name,
     unit: unit || "un",
     quantity: quantity || 0,
     min_quantity: min_quantity || 0,
-  });
+  }).select("id").single();
+  if (error) throw error;
+  return data.id;
+}
+
+export async function updateProduct(id, patch) {
+  const { error } = await supabase.from("products").update(patch).eq("id", id);
   if (error) throw error;
 }
 
