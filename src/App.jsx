@@ -18,6 +18,7 @@ export default function App() {
   const [needsMfa, setNeedsMfa] = useState(false);
   const [checkingMfa, setCheckingMfa] = useState(true);
   const [subscription, setSubscription] = useState(undefined); // undefined = carregando, null = n/a (ex: admin sem empresa)
+  const [signupError, setSignupError] = useState(""); // falha ao criar a empresa do cadastro autônomo
 
   useEffect(() => {
     // Sessão local. Se o token venceu e não há internet, entra com a identidade salva
@@ -108,7 +109,13 @@ export default function App() {
           p_company_name: meta.company_name,
           p_full_name: meta.full_name || null,
         });
-        if (!error) result = await db.getMySubscription();
+        if (error) {
+          console.error("signup_company falhou:", error);
+          setSignupError(error.message || "Erro desconhecido");
+        } else {
+          setSignupError("");
+          result = await db.getMySubscription();
+        }
       }
 
       setSubscription(result); // null quando o usuário não tem empresa (ex: admin de plataforma)
@@ -178,6 +185,21 @@ export default function App() {
   // Ainda buscando o status da assinatura
   if (subscription === undefined) {
     return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-500">Carregando...</div>;
+  }
+
+  // Cadastro novo cuja empresa não pôde ser criada: mostra o motivo em vez de entrar num app vazio
+  if (signupError) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center gap-3 text-center px-4">
+        <p className="font-medium">Não foi possível criar sua conta</p>
+        <p className="text-sm text-zinc-400 max-w-sm">Tente novamente. Se o problema continuar, envie esta mensagem ao suporte:</p>
+        <p className="text-xs text-rose-400 max-w-sm break-words">{signupError}</p>
+        <button onClick={() => window.location.reload()} className="mt-2 bg-zinc-600 hover:bg-zinc-500 text-white text-sm font-medium px-4 py-2.5 rounded-xl">
+          Tentar novamente
+        </button>
+        <button onClick={handleLogout} className="text-xs text-zinc-400 mt-1">Sair</button>
+      </div>
+    );
   }
 
   // Ficou tempo demais sem internet para confirmar a assinatura
