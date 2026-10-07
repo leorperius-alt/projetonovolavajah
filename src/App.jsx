@@ -98,7 +98,19 @@ export default function App() {
         setSubscription(undefined);
         return;
       }
-      const result = await db.getMySubscription();
+      let result = await db.getMySubscription();
+
+      // Cadastro autônomo: usuário recém-confirmado ainda não tem empresa.
+      // Cria empresa + perfil de dono + teste de 14 dias (função idempotente no banco).
+      const meta = session.user?.user_metadata;
+      if (result === null && !session.offline && meta?.company_name) {
+        const { error } = await supabase.rpc("signup_company", {
+          p_company_name: meta.company_name,
+          p_full_name: meta.full_name || null,
+        });
+        if (!error) result = await db.getMySubscription();
+      }
+
       setSubscription(result); // null quando o usuário não tem empresa (ex: admin de plataforma)
     })();
   }, [session]);
