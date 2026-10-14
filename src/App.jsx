@@ -6,6 +6,7 @@ import InviteAccept from "./InviteAccept.jsx";
 import ResetPassword from "./ResetPassword.jsx";
 import MfaChallenge from "./MfaChallenge.jsx";
 import SubscriptionGate from "./SubscriptionGate.jsx";
+import CompleteSignup from "./CompleteSignup.jsx";
 import * as db from "./lib/db";
 import { setSentryUser } from "./sentry.js";
 import { getSyncStatus, refreshSyncStatus, syncNow } from "./lib/syncQueue";
@@ -19,6 +20,7 @@ export default function App() {
   const [checkingMfa, setCheckingMfa] = useState(true);
   const [subscription, setSubscription] = useState(undefined); // undefined = carregando, null = n/a (ex: admin sem empresa)
   const [signupError, setSignupError] = useState(""); // falha ao criar a empresa do cadastro autônomo
+  const [needsCompany, setNeedsCompany] = useState(false); // login com Google sem empresa ainda
 
   useEffect(() => {
     // Sessão local. Se o token venceu e não há internet, entra com a identidade salva
@@ -118,6 +120,10 @@ export default function App() {
         }
       }
 
+      // Primeiro acesso com Google: não há company_name no cadastro, então pedimos o nome da lavagem
+      const isGoogle = session.user?.app_metadata?.provider === "google" || (session.user?.identities || []).some((i) => i.provider === "google");
+      setNeedsCompany(result === null && !session.offline && !meta?.company_name && isGoogle);
+
       setSubscription(result); // null quando o usuário não tem empresa (ex: admin de plataforma)
     })();
   }, [session]);
@@ -185,6 +191,22 @@ export default function App() {
   // Ainda buscando o status da assinatura
   if (subscription === undefined) {
     return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-500">Carregando...</div>;
+  }
+
+  // Login com Google sem empresa: coleta o nome da lavagem e cria empresa + teste de 14 dias
+  if (needsCompany) {
+    const meta = session?.user?.user_metadata || {};
+    return (
+      <CompleteSignup
+        defaultName={meta.full_name || meta.name || ""}
+        onLogout={handleLogout}
+        onDone={async () => {
+          const result = await db.getMySubscription();
+          setSubscription(result);
+          setNeedsCompany(false);
+        }}
+      />
+    );
   }
 
   // Cadastro novo cuja empresa não pôde ser criada: mostra o motivo em vez de entrar num app vazio
