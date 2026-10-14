@@ -5,7 +5,7 @@ import {
   TrendingDown, FileBarChart, Download, ChevronRight, ShieldOff, ShieldCheck, UserX,
   Package, ArrowDownCircle, ArrowUpCircle, History, AlertTriangle, MessageCircle, Percent,
   Edit2, XCircle, LayoutDashboard, ArrowUp, ArrowDown, Minus, CreditCard, FileText, Crown,
-  ClipboardList, QrCode, BarChart3, MoreHorizontal,
+  ClipboardList, QrCode, BarChart3, MoreHorizontal, Coins,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./lib/db";
@@ -13,6 +13,7 @@ import { getCurrentUserId, useOnlineStatus } from "./lib/offline";
 import { discardFailed, onSynced, startAutoSync, useSyncStatus } from "./lib/syncQueue";
 import { reportError } from "./sentry.js";
 import ThemeToggle from "./ThemeToggle.jsx";
+import FluxoCaixaView from "./FluxoCaixa.jsx";
 import { VistoriaModal, VistoriaViewModal } from "./VistoriaModal.jsx";
 
 const genLocalId = () => Math.random().toString(36).slice(2, 9);
@@ -71,13 +72,13 @@ export default function LavaJaApp({ onLogout }) {
   const [loyaltyThreshold, setLoyaltyThreshold] = useState(10);
   const [overdueDaysThreshold, setOverdueDaysThreshold] = useState(7);
   const [relatoriosInitialDate, setRelatoriosInitialDate] = useState(null);
-  const [finSub, setFinSub] = useState("financeiro"); // sub-aba da tela Financeiro: "financeiro" | "relatorios"
+  const [finSub, setFinSub] = useState("financeiro"); // sub-aba da tela Financeiro: "financeiro" | "caixa" | "relatorios"
   const [maisOpen, setMaisOpen] = useState(false); // menu "Mais" da barra inferior (celular)
   const [myRole, setMyRole] = useState(null);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [myUserId, setMyUserId] = useState(null);
   const [blocked, setBlocked] = useState(false);
-  const [data, setData] = useState({ customers: [], services: [], orders: [], expenses: [], products: [], serviceProducts: [], team: [], categoryPrices: [] });
+  const [data, setData] = useState({ customers: [], services: [], orders: [], expenses: [], products: [], serviceProducts: [], team: [], categoryPrices: [], cashDeposits: [] });
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("fila");
   const [modal, setModal] = useState(null);
@@ -364,7 +365,7 @@ export default function LavaJaApp({ onLogout }) {
               id="sec-topo"
               value={finSub}
               onChange={setFinSub}
-              tabs={[{ k: "financeiro", l: "Financeiro", icon: Wallet }, { k: "relatorios", l: "Relatórios", icon: BarChart3 }]}
+              tabs={[{ k: "financeiro", l: "Financeiro", icon: Wallet }, { k: "caixa", l: "Caixa", icon: Coins }, { k: "relatorios", l: "Relatórios", icon: BarChart3 }]}
             />
             {finSub === "financeiro" ? (
               <FinanceiroView
@@ -375,6 +376,8 @@ export default function LavaJaApp({ onLogout }) {
                 overdueDaysThreshold={overdueDaysThreshold}
                 setOverdueDaysThreshold={setOverdueDaysThreshold}
               />
+            ) : finSub === "caixa" ? (
+              <FluxoCaixaView data={data} companyId={companyId} refetch={refetch} />
             ) : (
               <RelatoriosView data={data} initialDate={relatoriosInitialDate} onConsumedInitialDate={() => setRelatoriosInitialDate(null)} setModal={setModal} />
             )}
