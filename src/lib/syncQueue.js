@@ -23,7 +23,7 @@ const UPLOAD_TIMEOUT_MS = 60000;
 const SYNC_INTERVAL_MS = 15000;
 
 // Só estas tabelas podem ser alteradas pela fila
-const TABLES = ["customers", "vehicles", "orders", "expenses"];
+const TABLES = ["customers", "vehicles", "orders", "expenses", "cash_deposits"];
 
 export function newId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
@@ -302,6 +302,9 @@ export function applyQueue(data, queue) {
         if (!d.orders.some((o) => o.id === row.id)) d.orders = [{ created_at: createdAt, paid: false, ...row }, ...d.orders];
       } else if (op.table === "expenses") {
         if (!d.expenses.some((e) => e.id === row.id)) d.expenses = [{ created_at: createdAt, ...row }, ...d.expenses];
+      } else if (op.table === "cash_deposits") {
+        const atuais = d.cashDeposits || [];
+        if (!atuais.some((c) => c.id === row.id)) d.cashDeposits = [{ created_at: createdAt, ...row }, ...atuais];
       }
     } else if (op.type === "update") {
       if (op.table === "orders") d.orders = mergeById(d.orders, op.id, op.patch);
