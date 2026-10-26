@@ -81,6 +81,7 @@ function emptyData() {
     team: [],
     categoryPrices: [],
     vehicleInspections: [],
+    cashDeposits: [],
   };
 }
 
@@ -97,6 +98,7 @@ export async function fetchAll(companyId) {
         supabase.from("profiles").select("id, full_name, role, commission_rate, blocked").eq("company_id", companyId).order("full_name"),
         supabase.from("service_category_prices").select("*").eq("company_id", companyId),
         supabase.from("vehicle_inspections").select("*").eq("company_id", companyId).order("created_at", { ascending: false }),
+        supabase.from("cash_deposits").select("*").eq("company_id", companyId).order("deposit_date", { ascending: false }),
       ]), NET_TIMEOUT_LONG_MS);
 
     // Falha de rede em qualquer tabela → usa a cópia salva (não mistura dado velho com novo)
@@ -106,7 +108,7 @@ export async function fetchAll(companyId) {
       throw netFail.error;
     }
 
-    const [customersRes, vehiclesRes, servicesRes, ordersRes, expensesRes, productsRes, serviceProductsRes, teamRes, categoryPricesRes, inspectionsRes] = results;
+    const [customersRes, vehiclesRes, servicesRes, ordersRes, expensesRes, productsRes, serviceProductsRes, teamRes, categoryPricesRes, inspectionsRes, cashDepositsRes] = results;
 
     const vehiclesByCustomer = {};
     (vehiclesRes.data || []).forEach((v) => {
@@ -129,6 +131,7 @@ export async function fetchAll(companyId) {
       team: teamRes.data || [],
       categoryPrices: categoryPricesRes.data || [],
       vehicleInspections: inspectionsRes.data || [],
+      cashDeposits: cashDepositsRes.data || [],
     };
 
     // Guarda a cópia sempre. Se alguma tabela deu erro (que não seja de rede), essa parte
@@ -136,7 +139,7 @@ export async function fetchAll(companyId) {
     let toCache = fresh;
     if (results.some((r) => r.error)) {
       const prev = (await cacheGet(`data:${companyId}`))?.value;
-      const keyOf = ["customers", "customers", "services", "orders", "expenses", "products", "serviceProducts", "team", "categoryPrices", "vehicleInspections"];
+      const keyOf = ["customers", "customers", "services", "orders", "expenses", "products", "serviceProducts", "team", "categoryPrices", "vehicleInspections", "cashDeposits"];
       toCache = { ...fresh };
       results.forEach((r, i) => {
         if (r.error && prev) {
@@ -173,6 +176,7 @@ export function subscribeToChanges(companyId, onChange) {
     .on("postgres_changes", { event: "*", schema: "public", table: "profiles", filter: `company_id=eq.${companyId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "service_category_prices", filter: `company_id=eq.${companyId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "vehicle_inspections", filter: `company_id=eq.${companyId}` }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "cash_deposits", filter: `company_id=eq.${companyId}` }, onChange)
     .subscribe();
   return () => supabase.removeChannel(channel);
 }
@@ -491,6 +495,26 @@ export async function createExpense(companyId, { description, amount, expense_da
 
 export async function deleteExpense(id) {
   const { error } = await supabase.from("expenses").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ---- Caixa: aportes (dinheiro adicionado ao caixa) ----
+export async function createCashDeposit(companyId, { description, amount, deposit_date }) {
+  await mutate({
+    type: "insert",
+    table: "cash_deposits",
+    row: {
+      id: newId(),
+      company_id: companyId,
+      description: (description || "").trim() || "Aporte",
+      amount,
+      deposit_date: deposit_date || localDateStr(),
+    },
+  });
+}
+
+export async function deleteCashDeposit(id) {
+  const { error } = await supabase.from("cash_deposits").delete().eq("id", id);
   if (error) throw error;
 }
 
